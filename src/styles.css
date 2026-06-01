@@ -143,6 +143,58 @@ button {
   color: #493628;
 }
 
+.form-heading {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.form-heading p {
+  margin: 6px 0 0;
+  color: #6b625b;
+  font-size: 0.92rem;
+}
+
+.clear-form-button,
+.details-toggle {
+  border: 1px solid #e5d6c8;
+  border-radius: 999px;
+  padding: 9px 13px;
+  color: #7a3f34;
+  background: #fffdfa;
+  font-weight: 800;
+}
+
+.details-toggle {
+  width: fit-content;
+}
+
+.required-label {
+  margin-left: 6px;
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #7a3f34;
+  background: #f6ddc8;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.optional-details {
+  display: grid;
+  gap: 16px;
+  border-top: 1px solid #eaded2;
+  padding-top: 16px;
+}
+
+.form-helper {
+  margin: -2px 0 0;
+  color: #7a3f34;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
 label {
   display: grid;
   gap: 8px;
@@ -219,6 +271,11 @@ textarea {
   color: #fff;
   background: #493628;
   font-weight: 800;
+}
+
+.book-form button[type='submit']:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
 }
 
 .favorite-button {

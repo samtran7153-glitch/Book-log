@@ -6,6 +6,20 @@ import './styles.css';
 const STORAGE_KEY = 'book-log-books';
 const statusOptions = ['Read', 'In Progress', 'Want to Read'];
 const bookTypeOptions = ['Fiction', 'Non-fiction', 'Realistic Fiction', 'Fantasy', 'Sci-fi', 'Mystery', 'Biography', 'Poetry', 'Historical Fiction', 'Education'];
+const defaultForm = {
+  title: '',
+  author: '',
+  status: 'Read',
+  rating: 5,
+  dateFinished: todayDate(),
+  notes: '',
+  tags: '',
+  bookType: 'Fiction',
+  seriesName: '',
+  seriesNumber: '',
+  favorite: false,
+  newberyAward: false,
+};
 
 function normalizeStatus(status) {
   return status === 'Reading' ? 'In Progress' : status;
@@ -102,20 +116,8 @@ function App() {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [ratingBookId, setRatingBookId] = useState(null);
-  const [form, setForm] = useState({
-    title: '',
-    author: '',
-    status: 'Read',
-    rating: 5,
-    dateFinished: '',
-    notes: '',
-    tags: '',
-    bookType: 'Fiction',
-    seriesName: '',
-    seriesNumber: '',
-    favorite: false,
-    newberyAward: false,
-  });
+  const [form, setForm] = useState(defaultForm);
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(books));
@@ -214,6 +216,7 @@ function App() {
 
   const isFavorite = Boolean(form.favorite);
   const isEditFavorite = Boolean(editForm?.favorite);
+  const canAddBook = Boolean(form.title.trim() && form.author.trim());
 
   const visibleBooks = useMemo(() => {
     return books
@@ -224,7 +227,15 @@ function App() {
   }, [books, filter, query, showFavoritesOnly]);
 
   function updateForm(field, value) {
-    setForm((current) => ({ ...current, [field]: field === 'author' ? titleCase(value) : value }));
+    setForm((current) => {
+      const next = { ...current, [field]: field === 'author' ? titleCase(value) : value };
+
+      if (field === 'status' && value === 'Read' && !current.dateFinished) {
+        next.dateFinished = todayDate();
+      }
+
+      return next;
+    });
   }
 
   function updateEditForm(field, value) {
@@ -287,7 +298,19 @@ function App() {
       },
       ...current,
     ]);
-    setForm({ title: '', author: '', status: 'Read', rating: 5, dateFinished: '', notes: '', tags: '', bookType: 'Fiction', seriesName: '', seriesNumber: '', favorite: false, newberyAward: false });
+    setForm((current) => ({
+      ...defaultForm,
+      status: current.status,
+      rating: current.rating,
+      bookType: current.bookType,
+      dateFinished: current.status === 'Read' ? todayDate() : '',
+    }));
+    setShowMoreDetails(false);
+  }
+
+  function clearForm() {
+    setForm(defaultForm);
+    setShowMoreDetails(false);
   }
 
   function deleteBook(id) {
@@ -398,18 +421,25 @@ function App() {
 
       <section className="panel layout-grid">
         <form className="book-form" onSubmit={addBook}>
-          <h2>Add a book</h2>
+          <div className="form-heading">
+            <div>
+              <h2>Add a book</h2>
+              <p>Title and author are all you need to get started.</p>
+            </div>
+            <button className="clear-form-button" onClick={clearForm} type="button">Clear</button>
+          </div>
           <label>
-            Title
+            Title <span className="required-label">required</span>
             <input
               value={form.title}
               onChange={(event) => updateForm('title', event.target.value)}
               placeholder="Dune"
+              required
             />
           </label>
           <label>
-            Author
-            <input value={form.author} onChange={(event) => updateForm('author', event.target.value)} placeholder="Frank Herbert" />
+            Author <span className="required-label">required</span>
+            <input value={form.author} onChange={(event) => updateForm('author', event.target.value)} placeholder="Frank Herbert" required />
             {!!authorSuggestions.length && (
               <div className="suggestion-list">
                 {authorSuggestions.map((author) => (
@@ -434,58 +464,66 @@ function App() {
               </label>
             )}
           </div>
-          {form.status === 'Read' && (
-            <label>
-              Date finished
-              <input type="date" value={form.dateFinished} onChange={(event) => updateForm('dateFinished', event.target.value)} />
-            </label>
-          )}
-          <label>
-            Notes
-            <textarea value={form.notes} onChange={(event) => updateForm('notes', event.target.value)} placeholder="Favorite quote, big idea, or takeaway" />
-          </label>
-          <label>
-            Tags
-            <input value={form.tags} onChange={(event) => updateForm('tags', event.target.value)} placeholder="sci-fi, favorite, short read" />
-            {!!tagSuggestions.length && (
-              <div className="suggestion-list">
-                {tagSuggestions.map((tag) => (
-                  <button key={tag} onClick={() => addTagSuggestion(tag)} type="button">{tag}</button>
-                ))}
-              </div>
-            )}
-          </label>
-          <button className={isFavorite ? 'favorite-button active' : 'favorite-button'} onClick={toggleFavorite} type="button">
-            {isFavorite ? 'Favorite ✓' : 'Mark as favorite'}
+          <button className="details-toggle" onClick={() => setShowMoreDetails((current) => !current)} type="button">
+            {showMoreDetails ? 'Hide details' : 'More details'}
           </button>
-          <label>
-            Book type
-            <select value={form.bookType} onChange={(event) => updateForm('bookType', event.target.value)}>
-              {bookTypeOptions.map((type) => <option key={type}>{type}</option>)}
-            </select>
-          </label>
-          <div className="form-row">
-            <label>
-              Series name
-              <input value={form.seriesName} onChange={(event) => updateForm('seriesName', event.target.value)} placeholder="Percy Jackson" />
-              {!!seriesSuggestions.length && (
-                <div className="suggestion-list">
-                  {seriesSuggestions.map((seriesName) => (
-                    <button key={seriesName} onClick={() => selectSeries(seriesName)} type="button">{seriesName}</button>
-                  ))}
-                </div>
+          {showMoreDetails && (
+            <div className="optional-details">
+              {form.status === 'Read' && (
+                <label>
+                  Date finished
+                  <input type="date" value={form.dateFinished} onChange={(event) => updateForm('dateFinished', event.target.value)} />
+                </label>
               )}
-            </label>
-            <label>
-              Book #
-              <input value={form.seriesNumber} onChange={(event) => updateForm('seriesNumber', event.target.value)} placeholder="1" />
-            </label>
-          </div>
-          <label className="toggle-field">
-            <input checked={form.newberyAward} onChange={(event) => updateForm('newberyAward', event.target.checked)} type="checkbox" />
-            Newbery Award winner
-          </label>
-          <button type="submit"><Plus size={18} /> Add book</button>
+              <label>
+                Notes
+                <textarea value={form.notes} onChange={(event) => updateForm('notes', event.target.value)} placeholder="Favorite quote, big idea, or takeaway" />
+              </label>
+              <label>
+                Tags
+                <input value={form.tags} onChange={(event) => updateForm('tags', event.target.value)} placeholder="sci-fi, favorite, short read" />
+                {!!tagSuggestions.length && (
+                  <div className="suggestion-list">
+                    {tagSuggestions.map((tag) => (
+                      <button key={tag} onClick={() => addTagSuggestion(tag)} type="button">{tag}</button>
+                    ))}
+                  </div>
+                )}
+              </label>
+              <button className={isFavorite ? 'favorite-button active' : 'favorite-button'} onClick={toggleFavorite} type="button">
+                {isFavorite ? 'Favorite ✓' : 'Mark as favorite'}
+              </button>
+              <label>
+                Book type
+                <select value={form.bookType} onChange={(event) => updateForm('bookType', event.target.value)}>
+                  {bookTypeOptions.map((type) => <option key={type}>{type}</option>)}
+                </select>
+              </label>
+              <div className="form-row">
+                <label>
+                  Series name
+                  <input value={form.seriesName} onChange={(event) => updateForm('seriesName', event.target.value)} placeholder="Percy Jackson" />
+                  {!!seriesSuggestions.length && (
+                    <div className="suggestion-list">
+                      {seriesSuggestions.map((seriesName) => (
+                        <button key={seriesName} onClick={() => selectSeries(seriesName)} type="button">{seriesName}</button>
+                      ))}
+                    </div>
+                  )}
+                </label>
+                <label>
+                  Book #
+                  <input value={form.seriesNumber} onChange={(event) => updateForm('seriesNumber', event.target.value)} placeholder="1" />
+                </label>
+              </div>
+              <label className="toggle-field">
+                <input checked={form.newberyAward} onChange={(event) => updateForm('newberyAward', event.target.checked)} type="checkbox" />
+                Newbery Award winner
+              </label>
+            </div>
+          )}
+          {!canAddBook && <p className="form-helper">Add a title and author to save this book.</p>}
+          <button disabled={!canAddBook} type="submit"><Plus size={18} /> Add book</button>
         </form>
 
         <div className="book-list-area">
@@ -643,14 +681,13 @@ function App() {
                     </div>
                     {ratingBookId === book.id && (
                       <div className="rating-panel">
-                        <strong>Rate this book?</strong>
+                        <strong>How would you rate it?</strong>
                         <div className="rating-options">
-                          {[1, 2, 3, 4, 5].map((rating) => (
-                            <button key={rating} onClick={() => finishBook(book.id, rating)} type="button">{rating}</button>
+                          {[5, 4, 3, 2, 1].map((rating) => (
+                            <button key={rating} onClick={() => finishBook(book.id, rating)} type="button">{rating} stars</button>
                           ))}
                         </div>
                         <button className="skip-rating-button" onClick={() => finishBook(book.id)} type="button">Skip rating</button>
-                        <button className="skip-rating-button" onClick={() => setRatingBookId(null)} type="button">Cancel</button>
                       </div>
                     )}
                     {book.notes && <p className="notes">{book.notes}</p>}
@@ -660,7 +697,7 @@ function App() {
             ))}
             {!visibleBooks.length && (
               <div className="empty-state">
-                {showFavoritesOnly ? 'No favorite books yet.' : 'No books match your search yet.'}
+                <p>No books match your search yet.</p>
               </div>
             )}
           </div>
