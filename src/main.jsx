@@ -118,6 +118,7 @@ function App() {
   const [ratingBookId, setRatingBookId] = useState(null);
   const [form, setForm] = useState(defaultForm);
   const [showMoreDetails, setShowMoreDetails] = useState(false);
+  const [addAttempted, setAddAttempted] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(books));
@@ -278,6 +279,7 @@ function App() {
     event.preventDefault();
 
     if (!form.title.trim() || !form.author.trim()) {
+      setAddAttempted(true);
       return;
     }
 
@@ -306,11 +308,13 @@ function App() {
       dateFinished: current.status === 'Read' ? todayDate() : '',
     }));
     setShowMoreDetails(false);
+    setAddAttempted(false);
   }
 
   function clearForm() {
     setForm(defaultForm);
     setShowMoreDetails(false);
+    setAddAttempted(false);
   }
 
   function deleteBook(id) {
@@ -420,7 +424,7 @@ function App() {
       </section>
 
       <section className="panel layout-grid">
-        <form className="book-form" onSubmit={addBook}>
+        <form className="book-form" onSubmit={addBook} noValidate>
           <div className="form-heading">
             <div>
               <h2>Add a book</h2>
@@ -434,12 +438,11 @@ function App() {
               value={form.title}
               onChange={(event) => updateForm('title', event.target.value)}
               placeholder="Dune"
-              required
             />
           </label>
           <label>
             Author <span className="required-label">required</span>
-            <input value={form.author} onChange={(event) => updateForm('author', event.target.value)} placeholder="Frank Herbert" required />
+            <input value={form.author} onChange={(event) => updateForm('author', event.target.value)} placeholder="Frank Herbert" />
             {!!authorSuggestions.length && (
               <div className="suggestion-list">
                 {authorSuggestions.map((author) => (
@@ -522,8 +525,8 @@ function App() {
               </label>
             </div>
           )}
-          {!canAddBook && <p className="form-helper">Add a title and author to save this book.</p>}
-          <button disabled={!canAddBook} type="submit"><Plus size={18} /> Add book</button>
+          {addAttempted && !canAddBook && <p className="form-helper">Add a title and author to save this book.</p>}
+          <button type="submit"><Plus size={18} /> Add book</button>
         </form>
 
         <div className="book-list-area">
