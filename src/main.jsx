@@ -6,7 +6,8 @@ import { db } from './firebase';
 import './styles.css';
 
 const STORAGE_KEY = 'book-log-books';
-const BOOKS_DOC = doc(db, 'bookLogs', 'default');
+const TENANT_KEY = 'book-log-tenant';
+const DEFAULT_TENANT = 'default';
 const statusOptions = ['Read', 'In Progress', 'Want to Read'];
 const bookTypeOptions = ['Fiction', 'Non-fiction', 'Realistic Fiction', 'Fantasy', 'Sci-fi', 'Mystery', 'Biography', 'Poetry', 'Historical Fiction', 'Education'];
 const defaultForm = {
@@ -60,6 +61,26 @@ function titleCase(value) {
   return value.replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
 }
 
+function normalizeTenant(value) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || DEFAULT_TENANT;
+}
+
+function getInitialTenant() {
+  const params = new URLSearchParams(window.location.search);
+  const tenantFromUrl = params.get('tenant');
+  const savedTenant = localStorage.getItem(TENANT_KEY);
+
+  return normalizeTenant(tenantFromUrl || savedTenant || DEFAULT_TENANT);
+}
+
+function getStorageKey(tenantId) {
+  return `${STORAGE_KEY}-${tenantId}`;
+}
+
 const initialBooks = [
   {
     id: crypto.randomUUID(),
@@ -106,8 +127,8 @@ function normalizeBook(book) {
   };
 }
 
-function loadLocalBooks() {
-  const saved = localStorage.getItem(STORAGE_KEY);
+function loadLocalBooks(tenantId = getInitialTenant()) {
+  const saved = localStorage.getItem(getStorageKey(tenantId));
   let parsedBooks = initialBooks;
 
   if (saved) {
@@ -123,6 +144,8 @@ function loadLocalBooks() {
 
 function App() {
   const [books, setBooks] = useState(loadLocalBooks);
+  const [tenantInput, setTenantInput] = useState(getInitialTenant);
+  const [tenantId, setTenantId] = useState(getInitialTenant);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -135,11 +158,17 @@ function App() {
   const hasSyncedCloud = useRef(false);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(books));
-  }, [books]);
+    localStorage.setItem(getStorageKey(tenantId), JSON.stringify(books));
+  }, [books, tenantId]);
 
   useEffect(() => {
-    return onSnapshot(BOOKS_DOC, (snapshot) => {
+    const booksDoc = doc(db, 'bookLogs', tenantId);
+
+    localStorage.setItem(TENANT_KEY, tenantId);
+    hasSyncedCloud.current = false;
+    setBooks(loadLocalBooks(tenantId));
+
+    return onSnapshot(booksDoc, (snapshot) => {
       if (snapshot.exists()) {
         const cloudBooks = snapshot.data().books || [];
         hasSyncedCloud.current = true;
@@ -149,15 +178,15 @@ function App() {
 
       if (!hasSyncedCloud.current) {
         hasSyncedCloud.current = true;
-        setDoc(BOOKS_DOC, { books: loadLocalBooks() });
+        setDoc(booksDoc, { books: loadLocalBooks(tenantId) });
       }
     });
-  }, []);
+  }, [tenantId]);
 
   function saveBooks(updater) {
     setBooks((current) => {
       const next = typeof updater === 'function' ? updater(current) : updater;
-      setDoc(BOOKS_DOC, { books: next });
+      setDoc(doc(db, 'bookLogs', tenantId), { books: next });
       return next;
     });
   }
@@ -264,6 +293,27 @@ function App() {
       .filter((book) => `${book.title} ${book.author} ${book.bookType} ${book.seriesName} ${book.favorite ? 'favorite' : ''} ${book.notes} ${book.tags.join(' ')}`.toLowerCase().includes(query.toLowerCase()))
       .sort((a, b) => a.title.localeCompare(b.title));
   }, [books, filter, query, showFavoritesOnly]);
+
+  const tenantUrl = useMemo(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('tenant', tenantId);
+    return url.toString();
+  }, [tenantId]);
+
+  function switchTenant(event) {
+    event.preventDefault();
+
+    const nextTenant = normalizeTenant(tenantInput);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tenant', nextTenant);
+    window.history.replaceState({}, '', url);
+    setTenantInput(nextTenant);
+    setTenantId(nextTenant);
+  }
+
+  async function copyTenantLink() {
+    await navigator.clipboard.writeText(tenantUrl);
+  }
 
   function updateForm(field, value) {
     setForm((current) => {
@@ -453,6 +503,18 @@ function App() {
           <strong>{stats.total}</strong>
           <span>books logged</span>
         </div>
+      </section>
+
+      <section className="tenant-panel">
+        <div>
+          <span>Current library</span>
+          <strong>{tenantId}</strong>
+        </div>
+        <form onSubmit={switchTenant}>
+          <input value={tenantInput} onChange={(event) => setTenantInput(event.target.value)} placeholder="family-name" />
+          <button type="submit">Switch</button>
+        </form>
+        <button className="copy-link-button" onClick={copyTenantLink} type="button">Copy library link</button>
       </section>
 
       <section className="stats-grid">
