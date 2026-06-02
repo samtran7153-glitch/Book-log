@@ -700,7 +700,7 @@ function App() {
             ))}
             {!visibleBooks.length && (
               <div className="empty-state">
-                <p>No books match your search yet.</p>
+                <p>{showFavoritesOnly ? 'No favorite books yet.' : 'No books match your search yet.'}</p>
               </div>
             )}
           </div>
