@@ -81,38 +81,7 @@ function getStorageKey(tenantId) {
   return `${STORAGE_KEY}-${tenantId}`;
 }
 
-const initialBooks = [
-  {
-    id: crypto.randomUUID(),
-    title: 'The Midnight Library',
-    author: 'Matt Haig',
-    status: 'Read',
-    rating: 4,
-    dateFinished: '2024-03-14',
-    notes: 'A thoughtful reminder about choices, regret, and possibility.',
-    tags: ['fiction', 'philosophical'],
-    bookType: 'Fiction',
-    seriesName: '',
-    seriesNumber: '',
-    favorite: false,
-    newberyAward: false,
-  },
-  {
-    id: crypto.randomUUID(),
-    title: 'Project Hail Mary',
-    author: 'Andy Weir',
-    status: 'In Progress',
-    rating: null,
-    dateFinished: '',
-    notes: 'Funny, clever, and very hard to put down.',
-    tags: ['sci-fi', 'adventure'],
-    bookType: 'Sci-fi',
-    seriesName: '',
-    seriesNumber: '',
-    favorite: false,
-    newberyAward: false,
-  },
-];
+const initialBooks = [];
 
 function normalizeBook(book) {
   return {
