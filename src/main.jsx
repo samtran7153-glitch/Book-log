@@ -1,9 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Award, BookOpen, Calendar, CheckCircle2, Edit3, Layers, Library, Plus, Search, Star, Trash2 } from 'lucide-react';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { db } from './firebase';
 import './styles.css';
 
 const STORAGE_KEY = 'book-log-books';
+const BOOKS_DOC = doc(db, 'bookLogs', 'default');
 const statusOptions = ['Read', 'In Progress', 'Want to Read'];
 const bookTypeOptions = ['Fiction', 'Non-fiction', 'Realistic Fiction', 'Fantasy', 'Sci-fi', 'Mystery', 'Biography', 'Poetry', 'Historical Fiction', 'Education'];
 const defaultForm = {
@@ -90,30 +93,36 @@ const initialBooks = [
   },
 ];
 
-function App() {
-  const [books, setBooks] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    let parsedBooks = initialBooks;
+function normalizeBook(book) {
+  return {
+    ...book,
+    status: normalizeStatus(book.status),
+    tags: book.tags || [],
+    bookType: book.bookType || 'Fiction',
+    seriesName: book.seriesName || '',
+    seriesNumber: book.seriesNumber || '',
+    favorite: Boolean(book.favorite),
+    newberyAward: Boolean(book.newberyAward),
+  };
+}
 
-    if (saved) {
-      try {
-        parsedBooks = JSON.parse(saved);
-      } catch {
-        parsedBooks = initialBooks;
-      }
+function loadLocalBooks() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  let parsedBooks = initialBooks;
+
+  if (saved) {
+    try {
+      parsedBooks = JSON.parse(saved);
+    } catch {
+      parsedBooks = initialBooks;
     }
+  }
 
-    return parsedBooks.map((book) => ({
-      ...book,
-      status: normalizeStatus(book.status),
-      tags: book.tags || [],
-      bookType: book.bookType || 'Fiction',
-      seriesName: book.seriesName || '',
-      seriesNumber: book.seriesNumber || '',
-      favorite: Boolean(book.favorite),
-      newberyAward: Boolean(book.newberyAward),
-    }));
-  });
+  return parsedBooks.map(normalizeBook);
+}
+
+function App() {
+  const [books, setBooks] = useState(loadLocalBooks);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -123,10 +132,35 @@ function App() {
   const [form, setForm] = useState(defaultForm);
   const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [addAttempted, setAddAttempted] = useState(false);
+  const hasSyncedCloud = useRef(false);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(books));
   }, [books]);
+
+  useEffect(() => {
+    return onSnapshot(BOOKS_DOC, (snapshot) => {
+      if (snapshot.exists()) {
+        const cloudBooks = snapshot.data().books || [];
+        hasSyncedCloud.current = true;
+        setBooks(cloudBooks.map(normalizeBook));
+        return;
+      }
+
+      if (!hasSyncedCloud.current) {
+        hasSyncedCloud.current = true;
+        setDoc(BOOKS_DOC, { books: loadLocalBooks() });
+      }
+    });
+  }, []);
+
+  function saveBooks(updater) {
+    setBooks((current) => {
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      setDoc(BOOKS_DOC, { books: next });
+      return next;
+    });
+  }
 
   const stats = useMemo(() => {
     const read = books.filter((book) => book.status === 'Read');
@@ -287,7 +321,7 @@ function App() {
       return;
     }
 
-    setBooks((current) => [
+    saveBooks((current) => [
       {
         ...form,
         id: crypto.randomUUID(),
@@ -322,7 +356,7 @@ function App() {
   }
 
   function deleteBook(id) {
-    setBooks((current) => current.filter((book) => book.id !== id));
+    saveBooks((current) => current.filter((book) => book.id !== id));
   }
 
   function confirmDeleteBook(book) {
@@ -348,7 +382,7 @@ function App() {
       return;
     }
 
-    setBooks((current) => current.map((book) => {
+    saveBooks((current) => current.map((book) => {
       if (book.id !== editingId) {
         return book;
       }
@@ -376,7 +410,7 @@ function App() {
   }
 
   function finishBook(id, rating = null) {
-    setBooks((current) => current.map((book) => {
+    saveBooks((current) => current.map((book) => {
       if (book.id !== id) {
         return book;
       }
@@ -392,7 +426,7 @@ function App() {
   }
 
   function markBookInProgress(id) {
-    setBooks((current) => current.map((book) => {
+    saveBooks((current) => current.map((book) => {
       if (book.id !== id) {
         return book;
       }
