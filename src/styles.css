@@ -113,6 +113,11 @@ button {
   gap: 12px;
 }
 
+.library-mode-buttons {
+  display: flex;
+  gap: 10px;
+}
+
 .library-gate button {
   border: 0;
   border-radius: 14px;
@@ -122,10 +127,24 @@ button {
   font-weight: 800;
 }
 
+.library-mode-buttons button {
+  color: #fff7ed;
+  background: rgba(255, 247, 237, 0.16);
+}
+
+.library-mode-buttons button.active {
+  color: #7a3f34;
+  background: #fff7ed;
+}
+
 .library-error {
   margin: 0;
   color: #ffeadd;
   font-weight: 800;
+}
+
+.tenant-panel .library-error {
+  color: #7a3f34;
 }
 
 .tenant-panel {

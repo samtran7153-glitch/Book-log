@@ -122,6 +122,7 @@ function App() {
   const [tenantPasswordInput, setTenantPasswordInput] = useState('');
   const [renameInput, setRenameInput] = useState(initialTenant || '');
   const [libraryError, setLibraryError] = useState('');
+  const [libraryMode, setLibraryMode] = useState(initialTenant ? 'signIn' : 'create');
   const [accessGranted, setAccessGranted] = useState(!initialTenant);
   const [tenantId, setTenantId] = useState(initialTenant);
   const [query, setQuery] = useState('');
@@ -293,7 +294,40 @@ function App() {
     return url.toString();
   }, [tenantId]);
 
-  async function switchTenant(event) {
+  function openLibrary(nextTenant) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('tenant', nextTenant);
+    window.history.replaceState({}, '', url);
+    setTenantInput(nextTenant);
+    setRenameInput(nextTenant);
+    setTenantId(nextTenant);
+    setAccessGranted(true);
+    setLibraryError('');
+    setShowTenantPanel(false);
+  }
+
+  async function createLibrary(event) {
+    event.preventDefault();
+
+    if (!tenantPasswordInput) {
+      setLibraryError('Create a password for this library.');
+      return;
+    }
+
+    const nextTenant = normalizeTenant(tenantInput);
+    const nextDoc = doc(db, 'bookLogs', nextTenant);
+    const snapshot = await getDoc(nextDoc);
+
+    if (snapshot.exists()) {
+      setLibraryError('That library name is already taken. Try signing in or choose a different name.');
+      return;
+    }
+
+    await setDoc(nextDoc, { books: [], password: tenantPasswordInput });
+    openLibrary(nextTenant);
+  }
+
+  async function signInToLibrary(event) {
     event.preventDefault();
 
     if (!tenantPasswordInput) {
@@ -305,30 +339,23 @@ function App() {
     const nextDoc = doc(db, 'bookLogs', nextTenant);
     const snapshot = await getDoc(nextDoc);
 
-    if (snapshot.exists()) {
-      const savedPassword = snapshot.data().password || '';
-
-      if (savedPassword && savedPassword !== tenantPasswordInput) {
-        setLibraryError('That password does not match this library.');
-        return;
-      }
-
-      if (!savedPassword) {
-        await setDoc(nextDoc, { password: tenantPasswordInput }, { merge: true });
-      }
-    } else {
-      await setDoc(nextDoc, { books: [], password: tenantPasswordInput });
+    if (!snapshot.exists()) {
+      setLibraryError('No library uses that name. Try creating it instead.');
+      return;
     }
 
-    const url = new URL(window.location.href);
-    url.searchParams.set('tenant', nextTenant);
-    window.history.replaceState({}, '', url);
-    setTenantInput(nextTenant);
-    setRenameInput(nextTenant);
-    setTenantId(nextTenant);
-    setAccessGranted(true);
-    setLibraryError('');
-    setShowTenantPanel(false);
+    const savedPassword = snapshot.data().password || '';
+
+    if (savedPassword && savedPassword !== tenantPasswordInput) {
+      setLibraryError('That password does not match this library.');
+      return;
+    }
+
+    if (!savedPassword) {
+      await setDoc(nextDoc, { password: tenantPasswordInput }, { merge: true });
+    }
+
+    openLibrary(nextTenant);
   }
 
   async function renameLibrary(event) {
@@ -544,16 +571,22 @@ function App() {
   }
 
   if (!tenantId || !accessGranted) {
+    const isCreatingLibrary = libraryMode === 'create';
+
     return (
       <main className="app-shell">
         <section className="library-gate">
           <p className="eyebrow"><Library size={16} /> Personal Library</p>
-          <h1>{tenantId ? 'Open your library' : 'Create your library'}</h1>
-          <p>{tenantId ? 'Enter the password for this library to open the shared book log.' : 'Choose a library name and password to start your book log. You can share the library link later so others open the same collection.'}</p>
-          <form onSubmit={switchTenant}>
+          <h1>{isCreatingLibrary ? 'Create your library' : 'Sign in to your library'}</h1>
+          <p>{isCreatingLibrary ? 'Choose a unique library name and password to start your book log.' : 'Enter your library name and password to open the shared book log.'}</p>
+          <div className="library-mode-buttons">
+            <button className={isCreatingLibrary ? 'active' : ''} onClick={() => { setLibraryMode('create'); setLibraryError(''); }} type="button">Create</button>
+            <button className={!isCreatingLibrary ? 'active' : ''} onClick={() => { setLibraryMode('signIn'); setLibraryError(''); }} type="button">Sign in</button>
+          </div>
+          <form onSubmit={isCreatingLibrary ? createLibrary : signInToLibrary}>
             <input value={tenantInput} onChange={(event) => setTenantInput(event.target.value)} placeholder="family-name" autoFocus />
             <input value={tenantPasswordInput} onChange={(event) => setTenantPasswordInput(event.target.value)} placeholder="Library password" type="password" />
-            <button type="submit">{tenantId ? 'Open library' : 'Create library'}</button>
+            <button type="submit">{isCreatingLibrary ? 'Create library' : 'Sign in'}</button>
           </form>
           {libraryError && <p className="library-error">{libraryError}</p>}
         </section>
@@ -582,10 +615,10 @@ function App() {
         </button>
         {showTenantPanel && (
           <div className="tenant-controls">
-            <form onSubmit={switchTenant}>
+            <form onSubmit={signInToLibrary}>
               <input value={tenantInput} onChange={(event) => setTenantInput(event.target.value)} placeholder="family-name" />
               <input value={tenantPasswordInput} onChange={(event) => setTenantPasswordInput(event.target.value)} placeholder="Library password" type="password" />
-              <button type="submit">Switch</button>
+              <button type="submit">Sign in</button>
             </form>
             <form onSubmit={renameLibrary}>
               <input value={renameInput} onChange={(event) => setRenameInput(event.target.value)} placeholder="new-library-name" />
