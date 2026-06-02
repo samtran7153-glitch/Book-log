@@ -154,6 +154,7 @@ function App() {
   const [ratingBookId, setRatingBookId] = useState(null);
   const [form, setForm] = useState(defaultForm);
   const [showMoreDetails, setShowMoreDetails] = useState(false);
+  const [showTenantPanel, setShowTenantPanel] = useState(false);
   const [addAttempted, setAddAttempted] = useState(false);
   const hasSyncedCloud = useRef(false);
 
@@ -505,16 +506,19 @@ function App() {
         </div>
       </section>
 
-      <section className="tenant-panel">
-        <div>
-          <span>Current library</span>
-          <strong>{tenantId}</strong>
-        </div>
-        <form onSubmit={switchTenant}>
-          <input value={tenantInput} onChange={(event) => setTenantInput(event.target.value)} placeholder="family-name" />
-          <button type="submit">Switch</button>
-        </form>
-        <button className="copy-link-button" onClick={copyTenantLink} type="button">Copy library link</button>
+      <section className={showTenantPanel ? 'tenant-panel open' : 'tenant-panel'}>
+        <button className="tenant-toggle-button" onClick={() => setShowTenantPanel((current) => !current)} type="button">
+          Library: {tenantId}
+        </button>
+        {showTenantPanel && (
+          <div className="tenant-controls">
+            <form onSubmit={switchTenant}>
+              <input value={tenantInput} onChange={(event) => setTenantInput(event.target.value)} placeholder="family-name" />
+              <button type="submit">Switch</button>
+            </form>
+            <button className="copy-link-button" onClick={copyTenantLink} type="button">Copy library link</button>
+          </div>
+        )}
       </section>
 
       <section className="stats-grid">

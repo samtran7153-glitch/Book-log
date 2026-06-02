@@ -85,10 +85,12 @@ button {
 
 .tenant-panel {
   display: grid;
-  grid-template-columns: 1fr minmax(260px, 420px) auto;
   gap: 16px;
-  align-items: center;
+  justify-items: start;
   margin: 24px 0 0;
+}
+
+.tenant-panel.open {
   border: 1px solid rgba(73, 54, 40, 0.1);
   border-radius: 24px;
   padding: 18px;
@@ -96,24 +98,16 @@ button {
   box-shadow: 0 18px 50px rgba(73, 54, 40, 0.09);
 }
 
-.tenant-panel div {
-  display: grid;
-  gap: 4px;
-}
-
-.tenant-panel span {
-  color: #6b625b;
-  font-size: 0.86rem;
-  font-weight: 700;
-}
-
-.tenant-panel strong {
-  color: #493628;
-  font-size: 1.35rem;
-}
-
-.tenant-panel form {
+.tenant-controls {
   display: flex;
+  width: 100%;
+  gap: 10px;
+  align-items: center;
+}
+
+.tenant-controls form {
+  display: flex;
+  flex: 1;
   gap: 10px;
 }
 
@@ -125,6 +119,10 @@ button {
   color: #fff;
   background: #7a3f34;
   font-weight: 800;
+}
+
+.tenant-toggle-button {
+  box-shadow: 0 12px 30px rgba(73, 54, 40, 0.14);
 }
 
 .copy-link-button {
@@ -595,6 +593,11 @@ textarea {
 
   .hero-card {
     min-width: 0;
+  }
+
+  .tenant-controls,
+  .tenant-controls form {
+    display: grid;
   }
 
   .book-list-area {
