@@ -181,6 +181,11 @@ button {
   text-transform: uppercase;
 }
 
+.required-label.complete {
+  color: #245b35;
+  background: #d8f3dc;
+}
+
 .optional-details {
   display: grid;
   gap: 16px;

@@ -433,7 +433,7 @@ function App() {
             <button className="clear-form-button" onClick={clearForm} type="button">Clear</button>
           </div>
           <label>
-            Title <span className="required-label">required</span>
+            Title <span className={form.title.trim() ? 'required-label complete' : 'required-label'}>{form.title.trim() ? 'done' : 'needed'}</span>
             <input
               value={form.title}
               onChange={(event) => updateForm('title', event.target.value)}
@@ -441,7 +441,7 @@ function App() {
             />
           </label>
           <label>
-            Author <span className="required-label">required</span>
+            Author <span className={form.author.trim() ? 'required-label complete' : 'required-label'}>{form.author.trim() ? 'done' : 'needed'}</span>
             <input value={form.author} onChange={(event) => updateForm('author', event.target.value)} placeholder="Frank Herbert" />
             {!!authorSuggestions.length && (
               <div className="suggestion-list">
