@@ -74,7 +74,7 @@ function getInitialTenant() {
   const tenantFromUrl = params.get('tenant');
   const savedTenant = localStorage.getItem(TENANT_KEY);
 
-  return normalizeTenant(tenantFromUrl || savedTenant || DEFAULT_TENANT);
+  return tenantFromUrl || savedTenant ? normalizeTenant(tenantFromUrl || savedTenant) : null;
 }
 
 function getStorageKey(tenantId) {
@@ -128,6 +128,10 @@ function normalizeBook(book) {
 }
 
 function loadLocalBooks(tenantId = getInitialTenant()) {
+  if (!tenantId) {
+    return [];
+  }
+
   const saved = localStorage.getItem(getStorageKey(tenantId));
   let parsedBooks = initialBooks;
 
@@ -143,9 +147,10 @@ function loadLocalBooks(tenantId = getInitialTenant()) {
 }
 
 function App() {
-  const [books, setBooks] = useState(loadLocalBooks);
-  const [tenantInput, setTenantInput] = useState(getInitialTenant);
-  const [tenantId, setTenantId] = useState(getInitialTenant);
+  const initialTenant = getInitialTenant();
+  const [books, setBooks] = useState(() => loadLocalBooks(initialTenant));
+  const [tenantInput, setTenantInput] = useState(initialTenant || '');
+  const [tenantId, setTenantId] = useState(initialTenant);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -159,10 +164,18 @@ function App() {
   const hasSyncedCloud = useRef(false);
 
   useEffect(() => {
+    if (!tenantId) {
+      return;
+    }
+
     localStorage.setItem(getStorageKey(tenantId), JSON.stringify(books));
   }, [books, tenantId]);
 
   useEffect(() => {
+    if (!tenantId) {
+      return undefined;
+    }
+
     const booksDoc = doc(db, 'bookLogs', tenantId);
 
     localStorage.setItem(TENANT_KEY, tenantId);
@@ -185,6 +198,10 @@ function App() {
   }, [tenantId]);
 
   function saveBooks(updater) {
+    if (!tenantId) {
+      return;
+    }
+
     setBooks((current) => {
       const next = typeof updater === 'function' ? updater(current) : updater;
       setDoc(doc(db, 'bookLogs', tenantId), { books: next });
@@ -297,7 +314,9 @@ function App() {
 
   const tenantUrl = useMemo(() => {
     const url = new URL(window.location.href);
-    url.searchParams.set('tenant', tenantId);
+    if (tenantId) {
+      url.searchParams.set('tenant', tenantId);
+    }
     return url.toString();
   }, [tenantId]);
 
@@ -310,6 +329,7 @@ function App() {
     window.history.replaceState({}, '', url);
     setTenantInput(nextTenant);
     setTenantId(nextTenant);
+    setShowTenantPanel(false);
   }
 
   async function copyTenantLink() {
@@ -489,6 +509,22 @@ function App() {
         dateFinished: '',
       };
     }));
+  }
+
+  if (!tenantId) {
+    return (
+      <main className="app-shell">
+        <section className="library-gate">
+          <p className="eyebrow"><Library size={16} /> Personal Library</p>
+          <h1>Create your library</h1>
+          <p>Choose a library name to start your book log. You can share the library link later so others open the same collection.</p>
+          <form onSubmit={switchTenant}>
+            <input value={tenantInput} onChange={(event) => setTenantInput(event.target.value)} placeholder="family-name" autoFocus />
+            <button type="submit">Create library</button>
+          </form>
+        </section>
+      </main>
+    );
   }
 
   return (
