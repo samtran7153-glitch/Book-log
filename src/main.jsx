@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Award, BookOpen, Calendar, CheckCircle2, Edit3, Layers, Library, Plus, Search, Star, Trash2 } from 'lucide-react';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import './styles.css';
 
@@ -119,6 +119,10 @@ function App() {
   const initialTenant = getInitialTenant();
   const [books, setBooks] = useState(() => loadLocalBooks(initialTenant));
   const [tenantInput, setTenantInput] = useState(initialTenant || '');
+  const [tenantPasswordInput, setTenantPasswordInput] = useState('');
+  const [renameInput, setRenameInput] = useState(initialTenant || '');
+  const [libraryError, setLibraryError] = useState('');
+  const [accessGranted, setAccessGranted] = useState(!initialTenant);
   const [tenantId, setTenantId] = useState(initialTenant);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
@@ -133,15 +137,15 @@ function App() {
   const hasSyncedCloud = useRef(false);
 
   useEffect(() => {
-    if (!tenantId) {
+    if (!tenantId || !accessGranted) {
       return;
     }
 
     localStorage.setItem(getStorageKey(tenantId), JSON.stringify(books));
-  }, [books, tenantId]);
+  }, [accessGranted, books, tenantId]);
 
   useEffect(() => {
-    if (!tenantId) {
+    if (!tenantId || !accessGranted) {
       return undefined;
     }
 
@@ -164,16 +168,16 @@ function App() {
         setDoc(booksDoc, { books: loadLocalBooks(tenantId) });
       }
     });
-  }, [tenantId]);
+  }, [accessGranted, tenantId]);
 
   function saveBooks(updater) {
-    if (!tenantId) {
+    if (!tenantId || !accessGranted) {
       return;
     }
 
     setBooks((current) => {
       const next = typeof updater === 'function' ? updater(current) : updater;
-      setDoc(doc(db, 'bookLogs', tenantId), { books: next });
+      setDoc(doc(db, 'bookLogs', tenantId), { books: next }, { merge: true });
       return next;
     });
   }
@@ -289,16 +293,75 @@ function App() {
     return url.toString();
   }, [tenantId]);
 
-  function switchTenant(event) {
+  async function switchTenant(event) {
     event.preventDefault();
 
+    if (!tenantPasswordInput) {
+      setLibraryError('Enter the library password.');
+      return;
+    }
+
     const nextTenant = normalizeTenant(tenantInput);
+    const nextDoc = doc(db, 'bookLogs', nextTenant);
+    const snapshot = await getDoc(nextDoc);
+
+    if (snapshot.exists()) {
+      const savedPassword = snapshot.data().password || '';
+
+      if (savedPassword && savedPassword !== tenantPasswordInput) {
+        setLibraryError('That password does not match this library.');
+        return;
+      }
+
+      if (!savedPassword) {
+        await setDoc(nextDoc, { password: tenantPasswordInput }, { merge: true });
+      }
+    } else {
+      await setDoc(nextDoc, { books: [], password: tenantPasswordInput });
+    }
+
     const url = new URL(window.location.href);
     url.searchParams.set('tenant', nextTenant);
     window.history.replaceState({}, '', url);
     setTenantInput(nextTenant);
+    setRenameInput(nextTenant);
     setTenantId(nextTenant);
+    setAccessGranted(true);
+    setLibraryError('');
     setShowTenantPanel(false);
+  }
+
+  async function renameLibrary(event) {
+    event.preventDefault();
+
+    const nextTenant = normalizeTenant(renameInput);
+
+    if (!tenantId || nextTenant === tenantId) {
+      setRenameInput(tenantId);
+      return;
+    }
+
+    const currentDoc = doc(db, 'bookLogs', tenantId);
+    const nextDoc = doc(db, 'bookLogs', nextTenant);
+    const currentSnapshot = await getDoc(currentDoc);
+    const nextSnapshot = await getDoc(nextDoc);
+
+    if (nextSnapshot.exists()) {
+      setLibraryError('That library name is already taken.');
+      return;
+    }
+
+    await setDoc(nextDoc, currentSnapshot.exists() ? currentSnapshot.data() : { books, password: tenantPasswordInput });
+    await deleteDoc(currentDoc);
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('tenant', nextTenant);
+    window.history.replaceState({}, '', url);
+    localStorage.removeItem(getStorageKey(tenantId));
+    setTenantInput(nextTenant);
+    setRenameInput(nextTenant);
+    setTenantId(nextTenant);
+    setLibraryError('');
   }
 
   async function copyTenantLink() {
@@ -480,17 +543,19 @@ function App() {
     }));
   }
 
-  if (!tenantId) {
+  if (!tenantId || !accessGranted) {
     return (
       <main className="app-shell">
         <section className="library-gate">
           <p className="eyebrow"><Library size={16} /> Personal Library</p>
-          <h1>Create your library</h1>
-          <p>Choose a library name to start your book log. You can share the library link later so others open the same collection.</p>
+          <h1>{tenantId ? 'Open your library' : 'Create your library'}</h1>
+          <p>{tenantId ? 'Enter the password for this library to open the shared book log.' : 'Choose a library name and password to start your book log. You can share the library link later so others open the same collection.'}</p>
           <form onSubmit={switchTenant}>
             <input value={tenantInput} onChange={(event) => setTenantInput(event.target.value)} placeholder="family-name" autoFocus />
-            <button type="submit">Create library</button>
+            <input value={tenantPasswordInput} onChange={(event) => setTenantPasswordInput(event.target.value)} placeholder="Library password" type="password" />
+            <button type="submit">{tenantId ? 'Open library' : 'Create library'}</button>
           </form>
+          {libraryError && <p className="library-error">{libraryError}</p>}
         </section>
       </main>
     );
@@ -519,11 +584,17 @@ function App() {
           <div className="tenant-controls">
             <form onSubmit={switchTenant}>
               <input value={tenantInput} onChange={(event) => setTenantInput(event.target.value)} placeholder="family-name" />
+              <input value={tenantPasswordInput} onChange={(event) => setTenantPasswordInput(event.target.value)} placeholder="Library password" type="password" />
               <button type="submit">Switch</button>
+            </form>
+            <form onSubmit={renameLibrary}>
+              <input value={renameInput} onChange={(event) => setRenameInput(event.target.value)} placeholder="new-library-name" />
+              <button type="submit">Rename</button>
             </form>
             <button className="copy-link-button" onClick={copyTenantLink} type="button">Copy library link</button>
           </div>
         )}
+        {showTenantPanel && libraryError && <p className="library-error">{libraryError}</p>}
       </section>
 
       <section className="stats-grid">

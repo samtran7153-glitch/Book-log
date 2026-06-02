@@ -109,7 +109,7 @@ button {
 }
 
 .library-gate form {
-  display: flex;
+  display: grid;
   gap: 12px;
 }
 
@@ -119,6 +119,12 @@ button {
   padding: 12px 16px;
   color: #7a3f34;
   background: #fff7ed;
+  font-weight: 800;
+}
+
+.library-error {
+  margin: 0;
+  color: #ffeadd;
   font-weight: 800;
 }
 
@@ -138,15 +144,15 @@ button {
 }
 
 .tenant-controls {
-  display: flex;
+  display: grid;
   width: 100%;
   gap: 10px;
   align-items: center;
 }
 
 .tenant-controls form {
-  display: flex;
-  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
   gap: 10px;
 }
 
