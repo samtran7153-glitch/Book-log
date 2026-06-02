@@ -10,7 +10,7 @@ const defaultForm = {
   title: '',
   author: '',
   status: 'Read',
-  rating: 5,
+  rating: '',
   dateFinished: todayDate(),
   notes: '',
   tags: '',
@@ -34,6 +34,10 @@ function parseTags(tags) {
     .split(',')
     .map((tag) => tag.trim())
     .filter(Boolean);
+}
+
+function parseRating(rating) {
+  return rating === '' || rating === null || rating === undefined ? null : Number(rating);
 }
 
 function addTagToInput(currentTags, tag) {
@@ -289,7 +293,7 @@ function App() {
         id: crypto.randomUUID(),
         title: form.title.trim(),
         author: titleCase(form.author.trim()),
-        rating: form.status === 'Read' ? Number(form.rating) : null,
+        rating: form.status === 'Read' ? parseRating(form.rating) : null,
         dateFinished: form.status === 'Read' ? form.dateFinished : '',
         tags: parseTags(form.tags),
         bookType: form.bookType,
@@ -354,7 +358,7 @@ function App() {
         ...editForm,
         title: editForm.title.trim(),
         author: titleCase(editForm.author.trim()),
-        rating: editForm.status === 'Read' ? Number(editForm.rating) : null,
+        rating: editForm.status === 'Read' ? parseRating(editForm.rating) : null,
         dateFinished: editForm.status === 'Read' ? editForm.dateFinished : '',
         tags: parseTags(editForm.tags),
         bookType: editForm.bookType,
@@ -462,6 +466,7 @@ function App() {
               <label>
                 Rating
                 <select value={form.rating} onChange={(event) => updateForm('rating', event.target.value)}>
+                  <option value="">No rating</option>
                   {[5, 4, 3, 2, 1].map((rating) => <option key={rating}>{rating}</option>)}
                 </select>
               </label>
@@ -579,7 +584,8 @@ function App() {
                       {editForm.status === 'Read' && (
                         <label>
                           Rating
-                          <select value={editForm.rating || 5} onChange={(event) => updateEditForm('rating', event.target.value)}>
+                          <select value={editForm.rating ?? ''} onChange={(event) => updateEditForm('rating', event.target.value)}>
+                            <option value="">No rating</option>
                             {[5, 4, 3, 2, 1].map((rating) => <option key={rating}>{rating}</option>)}
                           </select>
                         </label>
