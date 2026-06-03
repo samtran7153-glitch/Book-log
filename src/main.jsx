@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Award, BookOpen, Calendar, CheckCircle2, Edit3, Layers, Library, Plus, Search, Star, Trash2 } from 'lucide-react';
-import { deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import './styles.css';
 
@@ -69,6 +69,14 @@ function normalizeTenant(value) {
     .replace(/^-+|-+$/g, '') || DEFAULT_TENANT;
 }
 
+function normalizeLibraryName(value) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 function getInitialTenant() {
   const params = new URLSearchParams(window.location.search);
   const tenantFromUrl = params.get('tenant');
@@ -83,6 +91,14 @@ function getStorageKey(tenantId) {
 
 function getBooksDoc(tenantId) {
   return doc(db, 'bookLogs', tenantId);
+}
+
+function getBooksCollection(tenantId) {
+  return collection(db, 'bookLogs', tenantId, 'books');
+}
+
+function getBookDoc(tenantId, bookId) {
+  return doc(db, 'bookLogs', tenantId, 'books', bookId);
 }
 
 function setTenantUrl(tenantId) {
@@ -149,6 +165,9 @@ function App() {
   const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [showTenantPanel, setShowTenantPanel] = useState(false);
   const [addAttempted, setAddAttempted] = useState(false);
+  const [libraryBusy, setLibraryBusy] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [isSavingBooks, setIsSavingBooks] = useState(false);
   const hasSyncedCloud = useRef(false);
 
   useEffect(() => {
@@ -165,34 +184,72 @@ function App() {
     }
 
     const booksDoc = getBooksDoc(tenantId);
+    const booksCollection = getBooksCollection(tenantId);
 
     localStorage.setItem(TENANT_KEY, tenantId);
     hasSyncedCloud.current = false;
     setBooks(loadLocalBooks(tenantId));
 
-    return onSnapshot(booksDoc, (snapshot) => {
+    const unsubscribeBooks = onSnapshot(booksCollection, (snapshot) => {
+      if (snapshot.empty) {
+        return;
+      }
+
+      hasSyncedCloud.current = true;
+      setBooks(snapshot.docs.map((bookSnapshot) => normalizeBook({ id: bookSnapshot.id, ...bookSnapshot.data() })));
+      setSaveError('');
+    }, () => {
+      setSaveError('Could not sync with the cloud. Check your connection and try again.');
+    });
+
+    const unsubscribeLibrary = onSnapshot(booksDoc, (snapshot) => {
       if (snapshot.exists()) {
         const cloudBooks = snapshot.data().books || [];
         hasSyncedCloud.current = true;
-        setBooks(cloudBooks.map(normalizeBook));
+        if (cloudBooks.length) {
+          setBooks(cloudBooks.map(normalizeBook));
+          cloudBooks.forEach((book) => {
+            setDoc(getBookDoc(tenantId, book.id), normalizeBook(book), { merge: true }).catch(() => {
+              setSaveError('Could not migrate all books to the improved cloud format.');
+            });
+          });
+        }
+        setSaveError('');
         return;
       }
 
       if (!hasSyncedCloud.current) {
         hasSyncedCloud.current = true;
-        setDoc(booksDoc, { books: loadLocalBooks(tenantId) });
+        setDoc(booksDoc, {}).catch(() => {
+          setSaveError('Could not create your cloud library. Your local copy is still visible.');
+        });
       }
+    }, () => {
+      setSaveError('Could not sync with the cloud. Check your connection and try again.');
     });
+
+    return () => {
+      unsubscribeBooks();
+      unsubscribeLibrary();
+    };
   }, [accessGranted, tenantId]);
 
-  function saveBooks(updater) {
+  function saveBooks(updater, syncBookChange) {
     if (!tenantId || !accessGranted) {
       return;
     }
 
     setBooks((current) => {
       const next = typeof updater === 'function' ? updater(current) : updater;
-      setDoc(getBooksDoc(tenantId), { books: next }, { merge: true });
+      setIsSavingBooks(true);
+      setSaveError('');
+      syncBookChange(next, current)
+        .catch(() => {
+          setSaveError('Could not save your latest change to the cloud. Please try again.');
+        })
+        .finally(() => {
+          setIsSavingBooks(false);
+        });
       return next;
     });
   }
@@ -321,84 +378,139 @@ function App() {
   async function createLibrary(event) {
     event.preventDefault();
 
+    if (libraryBusy) {
+      return;
+    }
+
     if (!tenantPasswordInput) {
       setLibraryError('Create a password for this library.');
       return;
     }
 
-    const nextTenant = normalizeTenant(tenantInput);
-    const nextDoc = doc(db, 'bookLogs', nextTenant);
-    const snapshot = await getDoc(nextDoc);
+    try {
+      setLibraryBusy(true);
+      setLibraryError('');
+      const nextTenant = normalizeLibraryName(tenantInput);
 
-    if (snapshot.exists()) {
-      setLibraryError('That library name is already taken. Try signing in or choose a different name.');
-      return;
+      if (!nextTenant) {
+        setLibraryError('Enter a library name with at least one letter or number.');
+        return;
+      }
+
+      const nextDoc = doc(db, 'bookLogs', nextTenant);
+      const snapshot = await getDoc(nextDoc);
+
+      if (snapshot.exists()) {
+        setLibraryError('That library name is already taken. Try signing in or choose a different name.');
+        return;
+      }
+
+      await setDoc(nextDoc, { password: tenantPasswordInput });
+      openLibrary(nextTenant);
+    } catch {
+      setLibraryError('Could not create that library. Check your connection and try again.');
+    } finally {
+      setLibraryBusy(false);
     }
-
-    await setDoc(nextDoc, { books: [], password: tenantPasswordInput });
-    openLibrary(nextTenant);
   }
 
   async function signInToLibrary(event) {
     event.preventDefault();
+
+    if (libraryBusy) {
+      return;
+    }
 
     if (!tenantPasswordInput) {
       setLibraryError('Enter the library password.');
       return;
     }
 
-    const nextTenant = normalizeTenant(tenantInput);
-    const nextDoc = doc(db, 'bookLogs', nextTenant);
-    const snapshot = await getDoc(nextDoc);
+    try {
+      setLibraryBusy(true);
+      setLibraryError('');
+      const nextTenant = normalizeLibraryName(tenantInput);
 
-    if (!snapshot.exists()) {
-      setLibraryError('No library uses that name. Try creating it instead.');
-      return;
+      if (!nextTenant) {
+        setLibraryError('Enter a library name with at least one letter or number.');
+        return;
+      }
+
+      const nextDoc = doc(db, 'bookLogs', nextTenant);
+      const snapshot = await getDoc(nextDoc);
+
+      if (!snapshot.exists()) {
+        setLibraryError('No library uses that name. Try creating it instead.');
+        return;
+      }
+
+      const savedPassword = snapshot.data().password || '';
+
+      if (savedPassword && savedPassword !== tenantPasswordInput) {
+        setLibraryError('That password does not match this library.');
+        return;
+      }
+
+      if (!savedPassword) {
+        await setDoc(nextDoc, { password: tenantPasswordInput }, { merge: true });
+      }
+
+      openLibrary(nextTenant);
+    } catch {
+      setLibraryError('Could not sign in. Check your connection and try again.');
+    } finally {
+      setLibraryBusy(false);
     }
-
-    const savedPassword = snapshot.data().password || '';
-
-    if (savedPassword && savedPassword !== tenantPasswordInput) {
-      setLibraryError('That password does not match this library.');
-      return;
-    }
-
-    if (!savedPassword) {
-      await setDoc(nextDoc, { password: tenantPasswordInput }, { merge: true });
-    }
-
-    openLibrary(nextTenant);
   }
 
   async function renameLibrary(event) {
     event.preventDefault();
 
-    const nextTenant = normalizeTenant(renameInput);
+    if (libraryBusy) {
+      return;
+    }
+
+    const nextTenant = normalizeLibraryName(renameInput);
+
+    if (!nextTenant) {
+      setLibraryError('Enter a library name with at least one letter or number.');
+      return;
+    }
 
     if (!tenantId || nextTenant === tenantId) {
       setRenameInput(tenantId);
       return;
     }
 
-    const currentDoc = getBooksDoc(tenantId);
-    const nextDoc = getBooksDoc(nextTenant);
-    const currentSnapshot = await getDoc(currentDoc);
-    const nextSnapshot = await getDoc(nextDoc);
+    try {
+      setLibraryBusy(true);
+      setLibraryError('');
+      const currentDoc = getBooksDoc(tenantId);
+      const nextDoc = getBooksDoc(nextTenant);
+      const currentSnapshot = await getDoc(currentDoc);
+      const nextSnapshot = await getDoc(nextDoc);
 
-    if (nextSnapshot.exists()) {
-      setLibraryError('That library name is already taken.');
-      return;
+      if (nextSnapshot.exists()) {
+        setLibraryError('That library name is already taken.');
+        return;
+      }
+
+      await setDoc(nextDoc, currentSnapshot.exists() ? currentSnapshot.data() : { books, password: tenantPasswordInput });
+      await Promise.all(books.map((book) => setDoc(getBookDoc(nextTenant, book.id), book)));
+      await Promise.all(books.map((book) => deleteDoc(getBookDoc(tenantId, book.id))));
+      await deleteDoc(currentDoc);
+
+      setTenantUrl(nextTenant);
+      localStorage.removeItem(getStorageKey(tenantId));
+      setTenantInput(nextTenant);
+      setRenameInput(nextTenant);
+      setTenantId(nextTenant);
+      setLibraryError('');
+    } catch {
+      setLibraryError('Could not rename the library. Check your connection and try again.');
+    } finally {
+      setLibraryBusy(false);
     }
-
-    await setDoc(nextDoc, currentSnapshot.exists() ? currentSnapshot.data() : { books, password: tenantPasswordInput });
-    await deleteDoc(currentDoc);
-
-    setTenantUrl(nextTenant);
-    localStorage.removeItem(getStorageKey(tenantId));
-    setTenantInput(nextTenant);
-    setRenameInput(nextTenant);
-    setTenantId(nextTenant);
-    setLibraryError('');
   }
 
   function signOutLibrary() {
@@ -415,7 +527,12 @@ function App() {
   }
 
   async function copyTenantLink() {
-    await navigator.clipboard.writeText(tenantUrl);
+    try {
+      await navigator.clipboard.writeText(tenantUrl);
+      setLibraryError('');
+    } catch {
+      setLibraryError('Could not copy the library link.');
+    }
   }
 
   function updateForm(field, value) {
@@ -474,23 +591,25 @@ function App() {
       return;
     }
 
-    saveBooks((current) => [
-      {
-        ...form,
-        id: crypto.randomUUID(),
-        title: form.title.trim(),
-        author: titleCase(form.author.trim()),
-        rating: form.status === 'Read' ? parseRating(form.rating) : null,
-        dateFinished: form.status === 'Read' ? form.dateFinished : '',
-        tags: parseTags(form.tags),
-        bookType: form.bookType,
-        seriesName: form.seriesName.trim(),
-        seriesNumber: form.seriesNumber.trim(),
-        favorite: Boolean(form.favorite),
-        newberyAward: Boolean(form.newberyAward),
-      },
-      ...current,
-    ]);
+    const nextBook = {
+      ...form,
+      id: crypto.randomUUID(),
+      title: form.title.trim(),
+      author: titleCase(form.author.trim()),
+      rating: form.status === 'Read' ? parseRating(form.rating) : null,
+      dateFinished: form.status === 'Read' ? form.dateFinished : '',
+      tags: parseTags(form.tags),
+      bookType: form.bookType,
+      seriesName: form.seriesName.trim(),
+      seriesNumber: form.seriesNumber.trim(),
+      favorite: Boolean(form.favorite),
+      newberyAward: Boolean(form.newberyAward),
+    };
+
+    saveBooks(
+      (current) => [nextBook, ...current],
+      () => setDoc(getBookDoc(tenantId, nextBook.id), nextBook),
+    );
     setForm((current) => ({
       ...defaultForm,
       status: current.status,
@@ -509,7 +628,10 @@ function App() {
   }
 
   function deleteBook(id) {
-    saveBooks((current) => current.filter((book) => book.id !== id));
+    saveBooks(
+      (current) => current.filter((book) => book.id !== id),
+      () => deleteDoc(getBookDoc(tenantId, id)),
+    );
   }
 
   function confirmDeleteBook(book) {
@@ -535,26 +657,24 @@ function App() {
       return;
     }
 
-    saveBooks((current) => current.map((book) => {
-      if (book.id !== editingId) {
-        return book;
-      }
+    const updatedBook = {
+      ...editForm,
+      title: editForm.title.trim(),
+      author: titleCase(editForm.author.trim()),
+      rating: editForm.status === 'Read' ? parseRating(editForm.rating) : null,
+      dateFinished: editForm.status === 'Read' ? editForm.dateFinished : '',
+      tags: parseTags(editForm.tags),
+      bookType: editForm.bookType,
+      seriesName: editForm.seriesName.trim(),
+      seriesNumber: editForm.seriesNumber.trim(),
+      favorite: Boolean(editForm.favorite),
+      newberyAward: Boolean(editForm.newberyAward),
+    };
 
-      return {
-        ...book,
-        ...editForm,
-        title: editForm.title.trim(),
-        author: titleCase(editForm.author.trim()),
-        rating: editForm.status === 'Read' ? parseRating(editForm.rating) : null,
-        dateFinished: editForm.status === 'Read' ? editForm.dateFinished : '',
-        tags: parseTags(editForm.tags),
-        bookType: editForm.bookType,
-        seriesName: editForm.seriesName.trim(),
-        seriesNumber: editForm.seriesNumber.trim(),
-        favorite: Boolean(editForm.favorite),
-        newberyAward: Boolean(editForm.newberyAward),
-      };
-    }));
+    saveBooks(
+      (current) => current.map((book) => (book.id === editingId ? updatedBook : book)),
+      () => setDoc(getBookDoc(tenantId, editingId), updatedBook, { merge: true }),
+    );
     cancelEditing();
   }
 
@@ -563,34 +683,48 @@ function App() {
   }
 
   function finishBook(id, rating = null) {
-    saveBooks((current) => current.map((book) => {
-      if (book.id !== id) {
-        return book;
-      }
+    let updatedBook = null;
 
-      return {
-        ...book,
-        status: 'Read',
-        rating,
-        dateFinished: book.dateFinished || todayDate(),
-      };
-    }));
+    saveBooks(
+      (current) => current.map((book) => {
+        if (book.id !== id) {
+          return book;
+        }
+
+        updatedBook = {
+          ...book,
+          status: 'Read',
+          rating,
+          dateFinished: book.dateFinished || todayDate(),
+        };
+
+        return updatedBook;
+      }),
+      () => setDoc(getBookDoc(tenantId, id), updatedBook, { merge: true }),
+    );
     setRatingBookId(null);
   }
 
   function markBookInProgress(id) {
-    saveBooks((current) => current.map((book) => {
-      if (book.id !== id) {
-        return book;
-      }
+    let updatedBook = null;
 
-      return {
-        ...book,
-        status: 'In Progress',
-        rating: null,
-        dateFinished: '',
-      };
-    }));
+    saveBooks(
+      (current) => current.map((book) => {
+        if (book.id !== id) {
+          return book;
+        }
+
+        updatedBook = {
+          ...book,
+          status: 'In Progress',
+          rating: null,
+          dateFinished: '',
+        };
+
+        return updatedBook;
+      }),
+      () => setDoc(getBookDoc(tenantId, id), updatedBook, { merge: true }),
+    );
   }
 
   if (!tenantId || !accessGranted) {
@@ -603,13 +737,13 @@ function App() {
           <h1>{isCreatingLibrary ? 'Create your library' : 'Sign in to your library'}</h1>
           <p>{isCreatingLibrary ? 'Choose a unique library name and password to start your book log.' : 'Enter your library name and password to open the shared book log.'}</p>
           <div className="library-mode-buttons">
-            <button className={isCreatingLibrary ? 'active' : ''} onClick={() => { setLibraryMode('create'); setLibraryError(''); }} type="button">Create</button>
-            <button className={!isCreatingLibrary ? 'active' : ''} onClick={() => { setLibraryMode('signIn'); setLibraryError(''); }} type="button">Sign in</button>
+            <button className={isCreatingLibrary ? 'active' : ''} disabled={libraryBusy} onClick={() => { setLibraryMode('create'); setLibraryError(''); }} type="button">Create</button>
+            <button className={!isCreatingLibrary ? 'active' : ''} disabled={libraryBusy} onClick={() => { setLibraryMode('signIn'); setLibraryError(''); }} type="button">Sign in</button>
           </div>
           <form onSubmit={isCreatingLibrary ? createLibrary : signInToLibrary}>
-            <input value={tenantInput} onChange={(event) => setTenantInput(event.target.value)} placeholder="family-name" autoFocus />
-            <input value={tenantPasswordInput} onChange={(event) => setTenantPasswordInput(event.target.value)} placeholder="Library password" type="password" />
-            <button type="submit">{isCreatingLibrary ? 'Create library' : 'Sign in'}</button>
+            <input value={tenantInput} disabled={libraryBusy} onChange={(event) => setTenantInput(event.target.value)} placeholder="family-name" autoFocus />
+            <input value={tenantPasswordInput} disabled={libraryBusy} onChange={(event) => setTenantPasswordInput(event.target.value)} placeholder="Library password" type="password" />
+            <button disabled={libraryBusy} type="submit">{libraryBusy ? 'Working...' : isCreatingLibrary ? 'Create library' : 'Sign in'}</button>
           </form>
           {libraryError && <p className="library-error">{libraryError}</p>}
         </section>
@@ -626,11 +760,11 @@ function App() {
         {showTenantPanel && (
           <div className="tenant-controls">
             <form onSubmit={renameLibrary}>
-              <input value={renameInput} onChange={(event) => setRenameInput(event.target.value)} placeholder="new-library-name" />
-              <button type="submit">Rename</button>
+              <input value={renameInput} disabled={libraryBusy} onChange={(event) => setRenameInput(event.target.value)} placeholder="new-library-name" />
+              <button disabled={libraryBusy} type="submit">{libraryBusy ? 'Renaming...' : 'Rename'}</button>
             </form>
-            <button className="copy-link-button" onClick={copyTenantLink} type="button">Copy library link</button>
-            <button className="sign-out-button" onClick={signOutLibrary} type="button">Sign out</button>
+            <button className="copy-link-button" disabled={libraryBusy} onClick={copyTenantLink} type="button">Copy library link</button>
+            <button className="sign-out-button" disabled={libraryBusy} onClick={signOutLibrary} type="button">Sign out</button>
           </div>
         )}
         {showTenantPanel && libraryError && <p className="library-error">{libraryError}</p>}
@@ -759,7 +893,9 @@ function App() {
             </div>
           )}
           {addAttempted && !canAddBook && <p className="form-helper">Add a title and author to save this book.</p>}
-          <button type="submit"><Plus size={18} /> Add book</button>
+          {saveError && <p className="save-error">{saveError}</p>}
+          {isSavingBooks && <p className="save-status">Saving changes...</p>}
+          <button disabled={isSavingBooks} type="submit"><Plus size={18} /> {isSavingBooks ? 'Saving...' : 'Add book'}</button>
         </form>
 
         <div className="book-list-area">

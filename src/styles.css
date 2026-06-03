@@ -25,6 +25,12 @@ button {
   cursor: pointer;
 }
 
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .app-shell {
   width: min(1180px, calc(100% - 32px));
   min-height: 100vh;
@@ -312,6 +318,21 @@ button {
   color: #7a3f34;
   font-size: 0.9rem;
   font-weight: 700;
+}
+
+.save-error,
+.save-status {
+  margin: -2px 0 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.save-error {
+  color: #9f2f24;
+}
+
+.save-status {
+  color: #5b514a;
 }
 
 label {
