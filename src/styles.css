@@ -203,6 +203,10 @@ input:disabled {
   background: #b36a5e;
 }
 
+.delete-library-button {
+  background: #9f2f24;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

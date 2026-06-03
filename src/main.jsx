@@ -513,17 +513,47 @@ function App() {
     }
   }
 
-  function signOutLibrary() {
+  function resetLibraryAccess() {
     setTenantUrl(null);
     localStorage.removeItem(TENANT_KEY);
+    if (tenantId) {
+      localStorage.removeItem(getStorageKey(tenantId));
+    }
     setTenantInput('');
     setTenantPasswordInput('');
     setRenameInput('');
     setTenantId(null);
+    setBooks([]);
     setAccessGranted(false);
     setLibraryMode('signIn');
     setLibraryError('');
     setShowTenantPanel(false);
+  }
+
+  function signOutLibrary() {
+    resetLibraryAccess();
+  }
+
+  async function deleteLibrary() {
+    if (libraryBusy || !tenantId) {
+      return;
+    }
+
+    if (!window.confirm(`Delete the "${tenantId}" library and all of its books? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setLibraryBusy(true);
+      setLibraryError('');
+      await Promise.all(books.map((book) => deleteDoc(getBookDoc(tenantId, book.id))));
+      await deleteDoc(getBooksDoc(tenantId));
+      resetLibraryAccess();
+    } catch {
+      setLibraryError('Could not delete the library. Check your connection and try again.');
+    } finally {
+      setLibraryBusy(false);
+    }
   }
 
   async function copyTenantLink() {
@@ -765,6 +795,7 @@ function App() {
             </form>
             <button className="copy-link-button" disabled={libraryBusy} onClick={copyTenantLink} type="button">Copy library link</button>
             <button className="sign-out-button" disabled={libraryBusy} onClick={signOutLibrary} type="button">Sign out</button>
+            <button className="delete-library-button" disabled={libraryBusy} onClick={deleteLibrary} type="button">{libraryBusy ? 'Working...' : 'Delete library'}</button>
           </div>
         )}
         {showTenantPanel && libraryError && <p className="library-error">{libraryError}</p>}
