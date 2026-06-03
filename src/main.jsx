@@ -81,7 +81,21 @@ function getStorageKey(tenantId) {
   return `${STORAGE_KEY}-${tenantId}`;
 }
 
-const initialBooks = [];
+function getBooksDoc(tenantId) {
+  return doc(db, 'bookLogs', tenantId);
+}
+
+function setTenantUrl(tenantId) {
+  const url = new URL(window.location.href);
+
+  if (tenantId) {
+    url.searchParams.set('tenant', tenantId);
+  } else {
+    url.searchParams.delete('tenant');
+  }
+
+  window.history.replaceState({}, '', url);
+}
 
 function normalizeBook(book) {
   return {
@@ -102,13 +116,13 @@ function loadLocalBooks(tenantId = getInitialTenant()) {
   }
 
   const saved = localStorage.getItem(getStorageKey(tenantId));
-  let parsedBooks = initialBooks;
+  let parsedBooks = [];
 
   if (saved) {
     try {
       parsedBooks = JSON.parse(saved);
     } catch {
-      parsedBooks = initialBooks;
+      parsedBooks = [];
     }
   }
 
@@ -150,7 +164,7 @@ function App() {
       return undefined;
     }
 
-    const booksDoc = doc(db, 'bookLogs', tenantId);
+    const booksDoc = getBooksDoc(tenantId);
 
     localStorage.setItem(TENANT_KEY, tenantId);
     hasSyncedCloud.current = false;
@@ -178,7 +192,7 @@ function App() {
 
     setBooks((current) => {
       const next = typeof updater === 'function' ? updater(current) : updater;
-      setDoc(doc(db, 'bookLogs', tenantId), { books: next }, { merge: true });
+      setDoc(getBooksDoc(tenantId), { books: next }, { merge: true });
       return next;
     });
   }
@@ -295,9 +309,7 @@ function App() {
   }, [tenantId]);
 
   function openLibrary(nextTenant) {
-    const url = new URL(window.location.href);
-    url.searchParams.set('tenant', nextTenant);
-    window.history.replaceState({}, '', url);
+    setTenantUrl(nextTenant);
     setTenantInput(nextTenant);
     setRenameInput(nextTenant);
     setTenantId(nextTenant);
@@ -368,8 +380,8 @@ function App() {
       return;
     }
 
-    const currentDoc = doc(db, 'bookLogs', tenantId);
-    const nextDoc = doc(db, 'bookLogs', nextTenant);
+    const currentDoc = getBooksDoc(tenantId);
+    const nextDoc = getBooksDoc(nextTenant);
     const currentSnapshot = await getDoc(currentDoc);
     const nextSnapshot = await getDoc(nextDoc);
 
@@ -381,9 +393,7 @@ function App() {
     await setDoc(nextDoc, currentSnapshot.exists() ? currentSnapshot.data() : { books, password: tenantPasswordInput });
     await deleteDoc(currentDoc);
 
-    const url = new URL(window.location.href);
-    url.searchParams.set('tenant', nextTenant);
-    window.history.replaceState({}, '', url);
+    setTenantUrl(nextTenant);
     localStorage.removeItem(getStorageKey(tenantId));
     setTenantInput(nextTenant);
     setRenameInput(nextTenant);
@@ -392,9 +402,7 @@ function App() {
   }
 
   function signOutLibrary() {
-    const url = new URL(window.location.href);
-    url.searchParams.delete('tenant');
-    window.history.replaceState({}, '', url);
+    setTenantUrl(null);
     localStorage.removeItem(TENANT_KEY);
     setTenantInput('');
     setTenantPasswordInput('');
