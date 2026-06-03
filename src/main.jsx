@@ -391,6 +391,21 @@ function App() {
     setLibraryError('');
   }
 
+  function signOutLibrary() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('tenant');
+    window.history.replaceState({}, '', url);
+    localStorage.removeItem(TENANT_KEY);
+    setTenantInput('');
+    setTenantPasswordInput('');
+    setRenameInput('');
+    setTenantId(null);
+    setAccessGranted(false);
+    setLibraryMode('signIn');
+    setLibraryError('');
+    setShowTenantPanel(false);
+  }
+
   async function copyTenantLink() {
     await navigator.clipboard.writeText(tenantUrl);
   }
@@ -615,16 +630,12 @@ function App() {
         </button>
         {showTenantPanel && (
           <div className="tenant-controls">
-            <form onSubmit={signInToLibrary}>
-              <input value={tenantInput} onChange={(event) => setTenantInput(event.target.value)} placeholder="family-name" />
-              <input value={tenantPasswordInput} onChange={(event) => setTenantPasswordInput(event.target.value)} placeholder="Library password" type="password" />
-              <button type="submit">Sign in</button>
-            </form>
             <form onSubmit={renameLibrary}>
               <input value={renameInput} onChange={(event) => setRenameInput(event.target.value)} placeholder="new-library-name" />
               <button type="submit">Rename</button>
             </form>
             <button className="copy-link-button" onClick={copyTenantLink} type="button">Copy library link</button>
+            <button className="sign-out-button" onClick={signOutLibrary} type="button">Sign out</button>
           </div>
         )}
         {showTenantPanel && libraryError && <p className="library-error">{libraryError}</p>}

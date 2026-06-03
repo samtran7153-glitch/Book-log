@@ -171,7 +171,7 @@ button {
 
 .tenant-controls form {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: 1fr auto;
   gap: 10px;
 }
 
@@ -191,6 +191,10 @@ button {
 
 .copy-link-button {
   background: #493628;
+}
+
+.sign-out-button {
+  background: #b36a5e;
 }
 
 .stats-grid {
