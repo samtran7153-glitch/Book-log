@@ -619,19 +619,6 @@ function App() {
 
   return (
     <main className="app-shell">
-      <section className="hero">
-        <div>
-          <p className="eyebrow"><Library size={16} /> Personal Library</p>
-          <h1>Book Log</h1>
-          <p className="hero-copy">Track what you read, what you are reading, your ratings, and the notes you want to remember.</p>
-        </div>
-        <div className="hero-card">
-          <BookOpen size={34} />
-          <strong>{stats.total}</strong>
-          <span>books logged</span>
-        </div>
-      </section>
-
       <section className={showTenantPanel ? 'tenant-panel open' : 'tenant-panel'}>
         <button className="tenant-toggle-button" onClick={() => setShowTenantPanel((current) => !current)} type="button">
           Library: {tenantId}
@@ -647,6 +634,19 @@ function App() {
           </div>
         )}
         {showTenantPanel && libraryError && <p className="library-error">{libraryError}</p>}
+      </section>
+
+      <section className="hero">
+        <div>
+          <p className="eyebrow"><Library size={16} /> Personal Library</p>
+          <h1>Book Log</h1>
+          <p className="hero-copy">Track what you read, what you are reading, your ratings, and the notes you want to remember.</p>
+        </div>
+        <div className="hero-card">
+          <BookOpen size={34} />
+          <strong>{stats.total}</strong>
+          <span>books logged</span>
+        </div>
       </section>
 
       <section className="stats-grid">
