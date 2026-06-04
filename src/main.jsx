@@ -914,7 +914,13 @@ function App() {
           <p className="hero-copy">Track what you read, what you are reading, your ratings, and the notes you want to remember.</p>
         </div>
         <div className="hero-card">
-          <BookOpen size={34} />
+          <div className="hero-book-illustration" aria-hidden="true">
+            <span className="hero-book hero-book-back" />
+            <span className="hero-book hero-book-front">
+              <BookOpen size={38} />
+            </span>
+            <span className="hero-bookmark" />
+          </div>
           <strong>{stats.total}</strong>
           <span>books logged</span>
         </div>

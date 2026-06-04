@@ -80,6 +80,7 @@ button:not(:disabled):hover {
 }
 
 .hero-card {
+  position: relative;
   display: grid;
   place-items: center;
   min-width: 180px;
@@ -88,10 +89,69 @@ button:not(:disabled):hover {
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.14);
   backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+.hero-card::before {
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 234, 221, 0.38) 0%, rgba(255, 234, 221, 0) 68%);
+  content: "";
+}
+
+.hero-book-illustration {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 84px;
+  margin-bottom: 6px;
+}
+
+.hero-book {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  border-radius: 18px 22px 22px 18px;
+  box-shadow: 0 18px 38px rgba(45, 37, 32, 0.18);
+}
+
+.hero-book-back {
+  width: 82px;
+  height: 58px;
+  transform: rotate(-9deg) translate(-10px, 6px);
+  background: rgba(246, 221, 200, 0.36);
+}
+
+.hero-book-front {
+  width: 76px;
+  height: 68px;
+  color: #7a3f34;
+  transform: rotate(5deg) translate(8px, -2px);
+  background: #fff7ed;
+}
+
+.hero-bookmark {
+  position: absolute;
+  top: 17px;
+  right: 27px;
+  width: 10px;
+  height: 34px;
+  border-radius: 0 0 999px 999px;
+  background: #b36a5e;
+  transform: rotate(5deg);
 }
 
 .hero-card strong {
+  position: relative;
   font-size: 3.5rem;
+}
+
+.hero-card span {
+  position: relative;
 }
 
 .library-gate {
