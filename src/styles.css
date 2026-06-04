@@ -90,6 +90,7 @@ button:not(:disabled):hover {
   background: rgba(255, 255, 255, 0.14);
   backdrop-filter: blur(12px);
   overflow: hidden;
+  isolation: isolate;
 }
 
 .hero-card::before {
@@ -97,7 +98,7 @@ button:not(:disabled):hover {
   width: 150px;
   height: 150px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(255, 234, 221, 0.38) 0%, rgba(255, 234, 221, 0) 68%);
+  background: radial-gradient(circle at 50% 34%, rgba(255, 234, 221, 0.24) 0%, rgba(255, 234, 221, 0) 64%);
   content: "";
 }
 
@@ -105,53 +106,55 @@ button:not(:disabled):hover {
   position: relative;
   display: grid;
   place-items: center;
-  width: 104px;
-  height: 84px;
-  margin-bottom: 6px;
+  width: 112px;
+  height: 118px;
+  margin-bottom: 4px;
+  z-index: 1;
 }
 
 .hero-book {
   position: absolute;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.48);
-  border-radius: 18px 22px 22px 18px;
-  box-shadow: 0 18px 38px rgba(45, 37, 32, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.46);
+  box-shadow: 0 18px 38px rgba(45, 37, 32, 0.16);
 }
 
 .hero-book-back {
   width: 82px;
-  height: 58px;
-  transform: rotate(-9deg) translate(-10px, 6px);
-  background: rgba(246, 221, 200, 0.36);
+  height: 66px;
+  border-radius: 22px;
+  background: rgba(246, 221, 200, 0.34);
+  transform: rotate(-10deg) translate(-15px, -18px);
 }
 
 .hero-book-front {
   width: 76px;
   height: 68px;
+  border-radius: 22px;
   color: #7a3f34;
-  transform: rotate(5deg) translate(8px, -2px);
-  background: #fff7ed;
-}
-
-.hero-bookmark {
-  position: absolute;
-  top: 17px;
-  right: 27px;
-  width: 10px;
-  height: 34px;
-  border-radius: 0 0 999px 999px;
-  background: #b36a5e;
-  transform: rotate(5deg);
+  background: rgba(255, 247, 237, 0.94);
+  transform: rotate(5deg) translate(13px, 20px);
 }
 
 .hero-card strong {
   position: relative;
-  font-size: 3.5rem;
+  color: #fff7ed;
+  font-size: 3rem;
+  line-height: 0.95;
+  text-align: center;
+  text-shadow: 0 4px 18px rgba(45, 37, 32, 0.34);
 }
 
-.hero-card span {
+.hero-card-stat {
   position: relative;
+  display: grid;
+  place-items: center;
+  z-index: 2;
+}
+
+.hero-card-stat span {
+  font-weight: 700;
 }
 
 .library-gate {
@@ -878,6 +881,23 @@ textarea {
   font-weight: 800;
 }
 
+.back-to-top-button {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 20;
+  display: none;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
+  padding: 12px 15px;
+  color: #fff7ed;
+  background: rgba(73, 54, 40, 0.92);
+  box-shadow: 0 18px 42px rgba(45, 37, 32, 0.26);
+  font-weight: 900;
+}
+
 @media (max-width: 860px) {
   .app-shell {
     width: min(100% - 22px, 1180px);
@@ -949,5 +969,12 @@ textarea {
 
   .toolbar {
     gap: 10px;
+  }
+
+  .back-to-top-button {
+    display: inline-flex;
+    right: 16px;
+    bottom: 16px;
+    padding: 12px 14px;
   }
 }

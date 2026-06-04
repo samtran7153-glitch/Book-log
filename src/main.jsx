@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Award, BookOpen, Calendar, CheckCircle2, Copy, Edit3, Layers, Library, Plus, Search, Star, Trash2 } from 'lucide-react';
+import { ArrowUp, Award, BookOpen, Calendar, CheckCircle2, Copy, Edit3, Layers, Library, Plus, Search, Star, Trash2 } from 'lucide-react';
 import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import './styles.css';
@@ -208,6 +208,7 @@ function App() {
   const [saveError, setSaveError] = useState('');
   const [isSavingBooks, setIsSavingBooks] = useState(false);
   const [copiedBookId, setCopiedBookId] = useState(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const hasSyncedCloud = useRef(false);
 
   useEffect(() => {
@@ -273,6 +274,19 @@ function App() {
       unsubscribeLibrary();
     };
   }, [accessGranted, tenantId]);
+
+  useEffect(() => {
+    function updateBackToTopVisibility() {
+      setShowBackToTop(window.scrollY > 480);
+    }
+
+    updateBackToTopVisibility();
+    window.addEventListener('scroll', updateBackToTopVisibility, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', updateBackToTopVisibility);
+    };
+  }, []);
 
   function saveBooks(updater, syncBookChange) {
     if (!tenantId || !accessGranted) {
@@ -666,6 +680,10 @@ function App() {
     }
   }
 
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   function updateForm(field, value) {
     setForm((current) => {
       const next = { ...current, [field]: field === 'author' ? titleCase(value) : value };
@@ -919,10 +937,11 @@ function App() {
             <span className="hero-book hero-book-front">
               <BookOpen size={38} />
             </span>
-            <span className="hero-bookmark" />
           </div>
-          <strong>{stats.total}</strong>
-          <span>books logged</span>
+          <div className="hero-card-stat">
+            <strong>{stats.total}</strong>
+            <span>books logged</span>
+          </div>
         </div>
       </section>
 
@@ -1228,6 +1247,12 @@ function App() {
           </div>
         </div>
       </section>
+      {showBackToTop && (
+        <button className="back-to-top-button" onClick={scrollToTop} type="button" aria-label="Back to top">
+          <ArrowUp size={20} />
+          Top
+        </button>
+      )}
     </main>
   );
 }
