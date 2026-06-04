@@ -615,11 +615,27 @@ function App() {
       return;
     }
 
+    const enteredPassword = window.prompt('Enter this library password to delete it.');
+
+    if (!enteredPassword) {
+      setLibraryError('Enter the library password to delete this library.');
+      return;
+    }
+
     try {
       setLibraryBusy(true);
       setLibraryError('');
+      const libraryDoc = getBooksDoc(tenantId);
+      const snapshot = await getDoc(libraryDoc);
+      const savedPassword = snapshot.exists() ? snapshot.data().password || '' : '';
+
+      if (savedPassword && savedPassword !== enteredPassword) {
+        setLibraryError('That password does not match this library.');
+        return;
+      }
+
       await Promise.all(books.map((book) => deleteDoc(getBookDoc(tenantId, book.id))));
-      await deleteDoc(getBooksDoc(tenantId));
+      await deleteDoc(libraryDoc);
       resetLibraryAccess();
     } catch {
       setLibraryError('Could not delete the library. Check your connection and try again.');
