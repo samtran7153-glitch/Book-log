@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Award, BookOpen, Calendar, CheckCircle2, Edit3, Layers, Library, Plus, Search, Star, Trash2 } from 'lucide-react';
+import { Award, BookOpen, Calendar, CheckCircle2, Copy, Edit3, Layers, Library, Plus, Search, Star, Trash2 } from 'lucide-react';
 import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import './styles.css';
@@ -126,6 +126,45 @@ function normalizeBook(book) {
   };
 }
 
+function renderStars(rating) {
+  const value = Number(rating);
+
+  if (!value) {
+    return '';
+  }
+
+  return '★'.repeat(value) + '☆'.repeat(5 - value);
+}
+
+function formatBookShareText(book) {
+  const lines = [
+    `${book.title} by ${book.author}`,
+    `Status: ${book.status}`,
+  ];
+
+  if (book.status === 'Read' && book.rating) {
+    lines.push(`Rating: ${renderStars(book.rating)} (${book.rating}/5)`);
+  }
+
+  if (book.bookType) {
+    lines.push(`Type: ${book.bookType}`);
+  }
+
+  if (book.seriesName) {
+    lines.push(`Series: ${book.seriesName}${book.seriesNumber ? ` #${book.seriesNumber}` : ''}`);
+  }
+
+  if (book.tags.length) {
+    lines.push(`Tags: ${book.tags.join(', ')}`);
+  }
+
+  if (book.notes) {
+    lines.push(`Notes: ${book.notes}`);
+  }
+
+  return lines.join('\n');
+}
+
 function loadLocalBooks(tenantId = getInitialTenant()) {
   if (!tenantId) {
     return [];
@@ -168,6 +207,7 @@ function App() {
   const [libraryBusy, setLibraryBusy] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [isSavingBooks, setIsSavingBooks] = useState(false);
+  const [copiedBookId, setCopiedBookId] = useState(null);
   const hasSyncedCloud = useRef(false);
 
   useEffect(() => {
@@ -356,6 +396,38 @@ function App() {
       .filter((book) => `${book.title} ${book.author} ${book.bookType} ${book.seriesName} ${book.favorite ? 'favorite' : ''} ${book.notes} ${book.tags.join(' ')}`.toLowerCase().includes(query.toLowerCase()))
       .sort((a, b) => a.title.localeCompare(b.title));
   }, [books, filter, query, showFavoritesOnly]);
+
+  const emptyState = useMemo(() => {
+    if (!books.length) {
+      return {
+        icon: <BookOpen size={34} />,
+        title: 'Start your book log',
+        message: 'Add your first book on the left. Title and author are all you need.',
+      };
+    }
+
+    if (showFavoritesOnly) {
+      return {
+        icon: <Star size={34} />,
+        title: 'No favorites yet',
+        message: 'Mark a book as a favorite and it will show up here.',
+      };
+    }
+
+    if (query.trim()) {
+      return {
+        icon: <Search size={34} />,
+        title: 'No matching books',
+        message: `Nothing matched “${query.trim()}”. Try a title, author, tag, or series.`,
+      };
+    }
+
+    return {
+      icon: <Library size={34} />,
+      title: `No ${filter.toLowerCase()} books`,
+      message: 'Try a different status filter or add another book.',
+    };
+  }, [books.length, filter, query, showFavoritesOnly]);
 
   const tenantUrl = useMemo(() => {
     const url = new URL(window.location.href);
@@ -562,6 +634,19 @@ function App() {
       setLibraryError('');
     } catch {
       setLibraryError('Could not copy the library link.');
+    }
+  }
+
+  async function copyBookText(book) {
+    try {
+      await navigator.clipboard.writeText(formatBookShareText(book));
+      setCopiedBookId(book.id);
+      setTimeout(() => {
+        setCopiedBookId((current) => (current === book.id ? null : current));
+      }, 1600);
+      setSaveError('');
+    } catch {
+      setSaveError('Could not copy that book. Check your browser permissions and try again.');
     }
   }
 
@@ -784,9 +869,14 @@ function App() {
   return (
     <main className="app-shell">
       <section className={showTenantPanel ? 'tenant-panel open' : 'tenant-panel'}>
-        <button className="tenant-toggle-button" onClick={() => setShowTenantPanel((current) => !current)} type="button">
-          Library: {tenantId}
-        </button>
+        <div className="tenant-nav">
+          <button className="tenant-toggle-button" onClick={() => setShowTenantPanel((current) => !current)} type="button">
+            <Library size={16} />
+            <span>Library</span>
+            <strong>{tenantId}</strong>
+          </button>
+          <span className="tenant-nav-hint">{showTenantPanel ? 'Manage sharing and settings' : 'Tap to manage'}</span>
+        </div>
         {showTenantPanel && (
           <div className="tenant-controls">
             <form onSubmit={renameLibrary}>
@@ -821,7 +911,7 @@ function App() {
       </section>
 
       <section className="panel layout-grid">
-        <form className="book-form" onSubmit={addBook} noValidate>
+        <form className={showMoreDetails ? 'book-form open' : 'book-form'} onSubmit={addBook} noValidate>
           <div className="form-heading">
             <div>
               <h2>Add a book</h2>
@@ -946,7 +1036,7 @@ function App() {
 
           <div className="book-list">
             {visibleBooks.map((book) => (
-              <article className="book-card" key={book.id}>
+              <article className={`book-card status-${book.status.toLowerCase().replace(/\s+/g, '-')}`} key={book.id}>
                 {editingId === book.id ? (
                   <form className="edit-book-form" onSubmit={saveBookEdit}>
                     <div className="form-row">
@@ -1051,12 +1141,14 @@ function App() {
                         <p>by {book.author}</p>
                       </div>
                       <div className="card-icon-actions">
+                        {copiedBookId === book.id && <span className="copied-label">Copied</span>}
+                        <button className="icon-button" onClick={() => copyBookText(book)} aria-label={`Copy ${book.title} as text`}><Copy size={18} /></button>
                         <button className="icon-button" onClick={() => startEditing(book)} aria-label={`Edit ${book.title}`}><Edit3 size={18} /></button>
                         <button className="icon-button" onClick={() => confirmDeleteBook(book)} aria-label={`Delete ${book.title}`}><Trash2 size={18} /></button>
                       </div>
                     </div>
                     <div className="book-meta">
-                      {book.status === 'Read' && book.rating && <span><Star size={16} /> {book.rating}/5</span>}
+                      {book.status === 'Read' && book.rating && <span className="rating-stars" aria-label={`${book.rating} out of 5 stars`}><Star size={16} /> {renderStars(book.rating)}</span>}
                       <span className="type-badge"><BookOpen size={16} /> {book.bookType}</span>
                       {book.seriesName && <span className="series-badge"><Layers size={16} /> {book.seriesName}{book.seriesNumber && ` #${book.seriesNumber}`}</span>}
                       {book.favorite && <span className="favorite-badge"><Star size={16} /> Favorite</span>}
@@ -1101,7 +1193,14 @@ function App() {
             ))}
             {!visibleBooks.length && (
               <div className="empty-state">
-                <p>{showFavoritesOnly ? 'No favorite books yet.' : 'No books match your search yet.'}</p>
+                <div className="empty-state-icon">{emptyState.icon}</div>
+                <h3>{emptyState.title}</h3>
+                <p>{emptyState.message}</p>
+                {!books.length && (
+                  <button className="empty-state-button" onClick={() => document.querySelector('.book-form input')?.focus()} type="button">
+                    Add your first book
+                  </button>
+                )}
               </div>
             )}
           </div>
