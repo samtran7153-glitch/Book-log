@@ -310,6 +310,10 @@ button:not(:disabled):hover {
   margin: 24px 0;
 }
 
+.stats-grid.compact {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .stat-card,
 .panel {
   border: 1px solid rgba(73, 54, 40, 0.1);

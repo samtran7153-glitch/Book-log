@@ -1094,7 +1094,7 @@ function App() {
         </div>
       </section>
 
-      <section className="stats-grid">
+      <section className={yearlyGoal > 0 ? 'stats-grid' : 'stats-grid compact'}>
         <Stat icon={<CheckCircle2 />} label="Finished" value={stats.read} />
         <Stat icon={<BookOpen />} label="In progress" value={stats.reading} />
         <Stat icon={<Star />} label="Avg read rating" value={stats.average} />
