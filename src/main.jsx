@@ -272,6 +272,7 @@ function App() {
 
     const unsubscribeBooks = onSnapshot(booksCollection, (snapshot) => {
       if (snapshot.empty) {
+        hasSyncedCloud.current = true;
         return;
       }
 
@@ -286,16 +287,9 @@ function App() {
     const unsubscribeLibrary = onSnapshot(booksDoc, (snapshot) => {
       if (snapshot.exists()) {
         const cloudBooks = snapshot.data().books || [];
-        if (cloudBooks.length && !hasSubcollectionBooks.current) {
-          hasSyncedCloud.current = true;
-          setBooks(cloudBooks.map(normalizeBook));
-          cloudBooks.forEach((book) => {
-            setDoc(getBookDoc(tenantId, book.id), normalizeBook(book), { merge: true }).catch(() => {
-              setSaveError('Could not migrate all books to the improved cloud format.');
-            });
-          });
+        if (cloudBooks.length) {
           setDoc(booksDoc, { books: [] }, { merge: true }).catch(() => {
-            setSaveError('Could not finish migrating your library data.');
+            setSaveError('Could not finish cleaning up old library data.');
           });
         }
         setSaveError('');
