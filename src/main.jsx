@@ -225,6 +225,7 @@ function App() {
   const [editForm, setEditForm] = useState(null);
   const [ratingBookId, setRatingBookId] = useState(null);
   const [form, setForm] = useState(defaultForm);
+  const [showAddBookModal, setShowAddBookModal] = useState(false);
   const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [showTenantPanel, setShowTenantPanel] = useState(false);
   const [addAttempted, setAddAttempted] = useState(false);
@@ -233,8 +234,6 @@ function App() {
   const [isSavingBooks, setIsSavingBooks] = useState(false);
   const [copiedBookId, setCopiedBookId] = useState(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
-  const [showStatsPanel, setShowStatsPanel] = useState(false);
-  const [showAuthorPanel, setShowAuthorPanel] = useState(false);
   const [selectedAuthor, setSelectedAuthor] = useState(null);
   const [yearlyGoal, setYearlyGoal] = useState(() => loadGoals(initialTenant).yearlyGoal);
   const [goalInput, setGoalInput] = useState('');
@@ -909,6 +908,7 @@ function App() {
       dateFinished: current.status === 'Read' ? todayDate() : '',
     }));
     setShowMoreDetails(false);
+    setShowAddBookModal(false);
     setAddAttempted(false);
   }
 
@@ -1019,6 +1019,18 @@ function App() {
     );
   }
 
+  function toggleBookFavorite(book) {
+    const updatedBook = {
+      ...book,
+      favorite: !book.favorite,
+    };
+
+    saveBooks(
+      (current) => current.map((currentBook) => (currentBook.id === book.id ? updatedBook : currentBook)),
+      () => setDoc(getBookDoc(tenantId, book.id), updatedBook, { merge: true }),
+    );
+  }
+
   if (!tenantId || !accessGranted) {
     const isCreatingLibrary = libraryMode === 'create';
 
@@ -1116,13 +1128,14 @@ function App() {
         </section>
       )}
 
-      <section className={showStatsPanel ? 'stats-panel open' : 'stats-panel'}>
-        <button className="stats-toggle-button" onClick={() => setShowStatsPanel((current) => !current)} type="button">
-          <BarChart3 size={16} />
-          <span>Advanced Statistics</span>
-          <TrendingUp size={16} />
-        </button>
-        {showStatsPanel && (
+      <section className="stats-panel open reading-dashboard">
+        <div className="dashboard-heading">
+          <div>
+            <h2><BarChart3 size={20} /> Reading Dashboard</h2>
+            <p>Goals, trends, pages, genres, and author insights at a glance.</p>
+          </div>
+          <TrendingUp size={22} />
+        </div>
           <div className="stats-content">
             <div className="stats-section">
               <h3>📖 Reading Goals</h3>
@@ -1256,17 +1269,20 @@ function App() {
               )}
             </div>
           </div>
-        )}
       </section>
 
-      <section className="panel layout-grid">
-        <form className={showMoreDetails ? 'book-form open' : 'book-form'} onSubmit={addBook} noValidate>
+      <section className="panel library-panel">
+        {showAddBookModal && <button className="modal-backdrop" onClick={() => setShowAddBookModal(false)} type="button" aria-label="Close add book panel" />}
+        <form className={`${showMoreDetails ? 'book-form open' : 'book-form'} ${showAddBookModal ? 'drawer-open' : ''}`} onSubmit={addBook} noValidate>
           <div className="form-heading">
             <div>
               <h2>Add a book</h2>
               <p>Title and author are all you need to get started.</p>
             </div>
-            <button className="clear-form-button" onClick={clearForm} type="button">Clear</button>
+            <div className="form-heading-actions">
+              <button className="clear-form-button" onClick={clearForm} type="button">Clear</button>
+              <button className="close-drawer-button" onClick={() => setShowAddBookModal(false)} type="button">×</button>
+            </div>
           </div>
           <label>
             Title <span className={form.title.trim() ? 'required-label complete' : 'required-label'}>{form.title.trim() ? 'done' : 'needed'}</span>
@@ -1386,13 +1402,25 @@ function App() {
             <button className={showFavoritesOnly ? 'filter-button active' : 'filter-button'} onClick={() => setShowFavoritesOnly((current) => !current)} type="button">
               Favorites
             </button>
+            <button className="add-book-trigger" onClick={() => setShowAddBookModal(true)} type="button">
+              <Plus size={18} /> Add book
+            </button>
           </div>
 
           <div className="book-list">
             {visibleBooks.map((book) => (
               <article className={`book-card status-${book.status.toLowerCase().replace(/\s+/g, '-')}`} key={book.id}>
                 {editingId === book.id ? (
-                  <form className="edit-book-form" onSubmit={saveBookEdit}>
+                  <div className="edit-modal-shell">
+                    <button className="modal-backdrop" onClick={cancelEditing} type="button" aria-label="Close edit panel" />
+                    <form className="edit-book-form edit-drawer" onSubmit={saveBookEdit}>
+                      <div className="form-heading">
+                        <div>
+                          <h2>Edit book</h2>
+                          <p>Update the key details without leaving your library view.</p>
+                        </div>
+                        <button className="close-drawer-button" onClick={cancelEditing} type="button">×</button>
+                      </div>
                     <div className="form-row">
                       <label>
                         Title
@@ -1490,6 +1518,7 @@ function App() {
                       <button className="book-action-button secondary" onClick={cancelEditing} type="button">Cancel</button>
                     </div>
                   </form>
+                  </div>
                 ) : (
                   <>
                     <div className="book-card-header">
@@ -1519,6 +1548,9 @@ function App() {
                       </div>
                     )}
                     <div className="book-actions">
+                      <button className={book.favorite ? 'book-action-button favorite-action active' : 'book-action-button favorite-action'} onClick={() => toggleBookFavorite(book)} type="button">
+                        <Heart size={15} /> {book.favorite ? 'Favorited' : 'Favorite'}
+                      </button>
                       {book.status === 'Want to Read' && (
                         <button className="book-action-button secondary" onClick={() => markBookInProgress(book.id)} type="button">
                           Start reading
@@ -1555,7 +1587,7 @@ function App() {
                 <h3>{emptyState.title}</h3>
                 <p>{emptyState.message}</p>
                 {!books.length && (
-                  <button className="empty-state-button" onClick={() => document.querySelector('.book-form input')?.focus()} type="button">
+                  <button className="empty-state-button" onClick={() => setShowAddBookModal(true)} type="button">
                     Add your first book
                   </button>
                 )}

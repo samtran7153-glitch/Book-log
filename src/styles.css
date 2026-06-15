@@ -359,6 +359,10 @@ button:not(:disabled):hover {
   align-items: start;
 }
 
+.library-panel {
+  position: relative;
+}
+
 .book-form {
   display: grid;
   gap: 12px;
@@ -366,6 +370,32 @@ button:not(:disabled):hover {
   padding: 18px;
   border-radius: 24px;
   background: #fff7ed;
+}
+
+.book-form:not(.drawer-open) {
+  display: none;
+}
+
+.book-form.drawer-open,
+.edit-drawer {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  width: min(430px, calc(100vw - 32px));
+  overflow-y: auto;
+  box-shadow: 0 28px 90px rgba(45, 37, 32, 0.28);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  border: 0;
+  padding: 0;
+  background: rgba(45, 37, 32, 0.34);
+  cursor: default;
 }
 
 .book-form.open {
@@ -382,6 +412,12 @@ button:not(:disabled):hover {
   gap: 16px;
   align-items: flex-start;
   justify-content: space-between;
+}
+
+.form-heading-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .form-heading p {
@@ -402,6 +438,20 @@ button:not(:disabled):hover {
 
 .details-toggle {
   width: fit-content;
+}
+
+.close-drawer-button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  color: #493628;
+  background: #eaded2;
+  font-size: 1.4rem;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .required-label {
@@ -560,7 +610,7 @@ textarea {
 
 .toolbar {
   display: grid;
-  grid-template-columns: 1fr 180px auto;
+  grid-template-columns: 1fr 180px auto auto;
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -594,6 +644,19 @@ textarea {
   border-color: #b36a5e;
   color: #fff;
   background: #b36a5e;
+}
+
+.add-book-trigger {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 16px;
+  padding: 0 16px;
+  color: #fff;
+  background: #493628;
+  font-weight: 900;
 }
 
 .book-list {
@@ -779,6 +842,17 @@ textarea {
   gap: 14px;
 }
 
+.edit-modal-shell {
+  display: contents;
+}
+
+.edit-drawer {
+  padding: 18px;
+  border: 1px solid #eaded2;
+  border-radius: 24px;
+  background: #fff7ed;
+}
+
 .edit-actions {
   display: flex;
   flex-wrap: wrap;
@@ -786,6 +860,9 @@ textarea {
 }
 
 .book-action-button {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
   margin-top: 16px;
   border: 0;
   border-radius: 999px;
@@ -803,6 +880,16 @@ textarea {
 .book-action-button.secondary {
   color: #493628;
   background: #f6ddc8;
+}
+
+.book-action-button.favorite-action {
+  color: #7a3f34;
+  background: #fff0ec;
+}
+
+.book-action-button.favorite-action.active {
+  color: #fff;
+  background: #b36a5e;
 }
 
 .book-action-button.complete {
@@ -975,6 +1062,31 @@ textarea {
 
 .stats-panel.open {
   padding: 20px 24px;
+}
+
+.reading-dashboard {
+  display: grid;
+  gap: 18px;
+}
+
+.dashboard-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.dashboard-heading h2 {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  color: #493628;
+}
+
+.dashboard-heading p {
+  margin: 6px 0 0;
+  color: #6b625b;
 }
 
 .stats-toggle-button {
