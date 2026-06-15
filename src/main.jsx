@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ArrowUp, Award, BookOpen, Calendar, CheckCircle2, Copy, Edit3, Layers, Library, Plus, Search, Star, Trash2, Target, TrendingUp, BarChart3, User, Heart } from 'lucide-react';
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import './styles.css';
 
@@ -842,10 +842,51 @@ function App() {
         return;
       }
 
-      await setDoc(nextDoc, currentSnapshot.exists() ? currentSnapshot.data() : { books, password: tenantPasswordInput });
-      await Promise.all(books.map((book) => setDoc(getBookDoc(nextTenant, book.id), book)));
-      await Promise.all(books.map((book) => deleteDoc(getBookDoc(tenantId, book.id))));
-      await deleteDoc(currentDoc);
+      if (!currentSnapshot.exists()) {
+        setLibraryError('The current library no longer exists.');
+        return;
+      }
+
+      const currentData = currentSnapshot.data();
+      const currentCollection = getBooksCollection(tenantId);
+      const nextCollection = getBooksCollection(nextTenant);
+
+      const booksSnapshot = await getDocs(currentCollection);
+      const booksFromFirestore = booksSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+      let newDocCreated = false;
+      let copiedBookIds = [];
+
+      try {
+        await setDoc(nextDoc, currentData);
+        newDocCreated = true;
+
+        for (const book of booksFromFirestore) {
+          await setDoc(getBookDoc(nextTenant, book.id), book);
+          copiedBookIds.push(book.id);
+        }
+
+        await Promise.all(booksFromFirestore.map((book) => deleteDoc(getBookDoc(tenantId, book.id))));
+        await deleteDoc(currentDoc);
+
+        const oldDismissedKey = getDismissedBannerKey(tenantId);
+        const newDismissedKey = getDismissedBannerKey(nextTenant);
+        const dismissedValue = localStorage.getItem(oldDismissedKey);
+        if (dismissedValue !== null) {
+          localStorage.setItem(newDismissedKey, dismissedValue);
+          localStorage.removeItem(oldDismissedKey);
+        }
+      } catch (rollbackError) {
+        if (newDocCreated) {
+          try {
+            await Promise.all(copiedBookIds.map((bookId) => deleteDoc(getBookDoc(nextTenant, bookId))));
+            await deleteDoc(nextDoc);
+          } catch (cleanupError) {
+            console.error('Cleanup error during rollback:', cleanupError);
+          }
+        }
+        throw rollbackError;
+      }
 
       setTenantUrl(nextTenant);
       localStorage.removeItem(getStorageKey(tenantId));
@@ -853,8 +894,9 @@ function App() {
       setRenameInput(nextTenant);
       setTenantId(nextTenant);
       setLibraryError('');
-    } catch {
+    } catch (error) {
       setLibraryError('Could not rename the library. Check your connection and try again.');
+      console.error('Rename library error:', error);
     } finally {
       setLibraryBusy(false);
     }
