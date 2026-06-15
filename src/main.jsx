@@ -8,8 +8,20 @@ import './styles.css';
 const STORAGE_KEY = 'book-log-books';
 const TENANT_KEY = 'book-log-tenant';
 const GOALS_KEY = 'book-log-goals';
+const SETTINGS_KEY = 'book-log-settings';
 const DEFAULT_TENANT = 'default';
-const statusOptions = ['Read', 'In Progress', 'Want to Read'];
+const baseStatusOptions = ['Read', 'In Progress', 'Want to Read'];
+const themeOptions = [
+  { value: 'cozy', label: 'Cozy' },
+  { value: 'forest', label: 'Forest' },
+  { value: 'ocean', label: 'Ocean' },
+  { value: 'lavender', label: 'Lavender' },
+];
+const defaultSettings = {
+  displayTitle: 'Book Log',
+  theme: 'cozy',
+  customStatuses: [],
+};
 const bookTypeOptions = ['Fiction', 'Non-fiction', 'Realistic Fiction', 'Fantasy', 'Sci-fi', 'Mystery', 'Biography', 'Poetry', 'Historical Fiction', 'Education'];
 const defaultForm = {
   title: '',
@@ -93,6 +105,39 @@ function getStorageKey(tenantId) {
 
 function getGoalsKey(tenantId) {
   return `${GOALS_KEY}-${tenantId}`;
+}
+
+function getSettingsKey(tenantId) {
+  return `${SETTINGS_KEY}-${tenantId}`;
+}
+
+function normalizeSettings(settings = {}) {
+  const customStatuses = Array.isArray(settings.customStatuses) ? settings.customStatuses : [];
+
+  return {
+    ...defaultSettings,
+    ...settings,
+    displayTitle: settings.displayTitle?.trim() || defaultSettings.displayTitle,
+    theme: themeOptions.some((theme) => theme.value === settings.theme) ? settings.theme : defaultSettings.theme,
+    customStatuses: customStatuses.map((status) => status.trim()).filter(Boolean),
+  };
+}
+
+function loadSettings(tenantId) {
+  if (!tenantId) {
+    return defaultSettings;
+  }
+
+  const saved = localStorage.getItem(getSettingsKey(tenantId));
+  if (saved) {
+    try {
+      return normalizeSettings(JSON.parse(saved));
+    } catch {
+      return defaultSettings;
+    }
+  }
+
+  return defaultSettings;
 }
 
 function loadGoals(tenantId) {
@@ -221,6 +266,9 @@ function App() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [settings, setSettings] = useState(() => loadSettings(initialTenant));
+  const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+  const [customStatusInput, setCustomStatusInput] = useState(() => loadSettings(initialTenant).customStatuses.join(', '));
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [ratingBookId, setRatingBookId] = useState(null);
@@ -258,6 +306,14 @@ function App() {
 
   useEffect(() => {
     if (!tenantId || !accessGranted) {
+      return;
+    }
+
+    localStorage.setItem(getSettingsKey(tenantId), JSON.stringify(settings));
+  }, [accessGranted, settings, tenantId]);
+
+  useEffect(() => {
+    if (!tenantId || !accessGranted) {
       return undefined;
     }
 
@@ -268,6 +324,8 @@ function App() {
     hasSyncedCloud.current = false;
     hasSubcollectionBooks.current = false;
     setBooks(loadLocalBooks(tenantId));
+    setSettings(loadSettings(tenantId));
+    setCustomStatusInput(loadSettings(tenantId).customStatuses.join(', '));
 
     const unsubscribeBooks = onSnapshot(booksCollection, (snapshot) => {
       if (snapshot.empty) {
@@ -285,7 +343,10 @@ function App() {
 
     const unsubscribeLibrary = onSnapshot(booksDoc, (snapshot) => {
       if (snapshot.exists()) {
+        const nextSettings = normalizeSettings(snapshot.data().settings);
         const cloudBooks = snapshot.data().books || [];
+        setSettings(nextSettings);
+        setCustomStatusInput(nextSettings.customStatuses.join(', '));
         if (cloudBooks.length) {
           setDoc(booksDoc, { books: [] }, { merge: true }).catch(() => {
             setSaveError('Could not finish cleaning up old library data.');
@@ -341,6 +402,20 @@ function App() {
           setIsSavingBooks(false);
         });
       return next;
+    });
+  }
+
+  function saveLibrarySettings(nextSettings) {
+    const normalizedSettings = normalizeSettings(nextSettings);
+    setSettings(normalizedSettings);
+    setCustomStatusInput(normalizedSettings.customStatuses.join(', '));
+
+    if (!tenantId || !accessGranted) {
+      return;
+    }
+
+    setDoc(getBooksDoc(tenantId), { settings: normalizedSettings }, { merge: true }).catch(() => {
+      setSaveError('Could not save your library customization.');
     });
   }
 
@@ -528,6 +603,9 @@ function App() {
   const isFavorite = Boolean(form.favorite);
   const isEditFavorite = Boolean(editForm?.favorite);
   const canAddBook = Boolean(form.title.trim() && form.author.trim());
+  const statusOptions = useMemo(() => {
+    return [...new Set([...baseStatusOptions, ...settings.customStatuses])];
+  }, [settings.customStatuses]);
   
   const duplicateBook = useMemo(() => {
     if (!form.title.trim() || !form.author.trim()) {
@@ -745,6 +823,8 @@ function App() {
     setTenantPasswordInput('');
     setRenameInput('');
     setTenantId(null);
+    setSettings(defaultSettings);
+    setCustomStatusInput('');
     setBooks([]);
     setAccessGranted(false);
     setLibraryMode('signIn');
@@ -830,6 +910,24 @@ function App() {
 
       return next;
     });
+  }
+
+  function updateLibraryTitle(value) {
+    saveLibrarySettings({ ...settings, displayTitle: value });
+  }
+
+  function updateLibraryTheme(value) {
+    saveLibrarySettings({ ...settings, theme: value });
+  }
+
+  function saveCustomStatuses() {
+    const customStatuses = customStatusInput
+      .split(',')
+      .map((status) => status.trim())
+      .filter(Boolean)
+      .filter((status) => !baseStatusOptions.some((baseStatus) => baseStatus.toLowerCase() === status.toLowerCase()));
+
+    saveLibrarySettings({ ...settings, customStatuses });
   }
 
   function updateEditForm(field, value) {
@@ -1056,7 +1154,7 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell theme-${settings.theme}`}>
       <section className={showTenantPanel ? 'tenant-panel open' : 'tenant-panel'}>
         <div className="tenant-nav">
           <button className="tenant-toggle-button" onClick={() => setShowTenantPanel((current) => !current)} type="button">
@@ -1083,7 +1181,7 @@ function App() {
       <section className="hero">
         <div>
           <p className="eyebrow"><Library size={16} /> Personal Library</p>
-          <h1>Book Log</h1>
+          <h1>{settings.displayTitle}</h1>
           <p className="hero-copy">Track what you read, what you are reading, your ratings, and the notes you want to remember.</p>
         </div>
         <div className="hero-card">
@@ -1099,6 +1197,10 @@ function App() {
           </div>
         </div>
       </section>
+
+      <button className="customize-trigger" onClick={() => setShowCustomizeModal(true)} type="button">
+        <Library size={16} /> Customize library
+      </button>
 
       <section className={yearlyGoal > 0 ? 'stats-grid' : 'stats-grid compact'}>
         <Stat icon={<CheckCircle2 />} label="Finished" value={stats.read} />
@@ -1410,117 +1512,7 @@ function App() {
           <div className="book-list">
             {visibleBooks.map((book) => (
               <article className={`book-card status-${book.status.toLowerCase().replace(/\s+/g, '-')}`} key={book.id}>
-                {editingId === book.id ? (
-                  <div className="edit-modal-shell">
-                    <button className="modal-backdrop" onClick={cancelEditing} type="button" aria-label="Close edit panel" />
-                    <form className="edit-book-form edit-drawer" onSubmit={saveBookEdit}>
-                      <div className="form-heading">
-                        <div>
-                          <h2>Edit book</h2>
-                          <p>Update the key details without leaving your library view.</p>
-                        </div>
-                        <button className="close-drawer-button" onClick={cancelEditing} type="button">×</button>
-                      </div>
-                    <div className="form-row">
-                      <label>
-                        Title
-                        <input
-                          value={editForm.title}
-                          onChange={(event) => updateEditForm('title', event.target.value)}
-                        />
-                      </label>
-                      <label>
-                        Author
-                        <input value={editForm.author} onChange={(event) => updateEditForm('author', event.target.value)} />
-                        {!!editAuthorSuggestions.length && (
-                          <div className="suggestion-list">
-                            {editAuthorSuggestions.map((author) => (
-                              <button key={author} onClick={() => selectEditAuthor(author)} type="button">{author}</button>
-                            ))}
-                          </div>
-                        )}
-                      </label>
-                    </div>
-                    <div className="form-row">
-                      <label>
-                        Status
-                        <select value={editForm.status} onChange={(event) => updateEditForm('status', event.target.value)}>
-                          {statusOptions.map((status) => <option key={status}>{status}</option>)}
-                        </select>
-                      </label>
-                      {editForm.status === 'Read' && (
-                        <label>
-                          Rating
-                          <select value={editForm.rating ?? ''} onChange={(event) => updateEditForm('rating', event.target.value)}>
-                            <option value="">No rating</option>
-                            {[5, 4, 3, 2, 1].map((rating) => <option key={rating}>{rating}</option>)}
-                          </select>
-                        </label>
-                      )}
-                    </div>
-                    {editForm.status === 'Read' && (
-                      <label>
-                        Date finished
-                        <input type="date" value={editForm.dateFinished} onChange={(event) => updateEditForm('dateFinished', event.target.value)} />
-                      </label>
-                    )}
-                    <label>
-                      Notes
-                      <textarea value={editForm.notes} onChange={(event) => updateEditForm('notes', event.target.value)} />
-                    </label>
-                    <label>
-                      Tags
-                      <input value={editForm.tags} onChange={(event) => updateEditForm('tags', event.target.value)} />
-                      {!!editTagSuggestions.length && (
-                        <div className="suggestion-list">
-                          {editTagSuggestions.map((tag) => (
-                            <button key={tag} onClick={() => addEditTagSuggestion(tag)} type="button">{tag}</button>
-                          ))}
-                        </div>
-                      )}
-                    </label>
-                    <button className={isEditFavorite ? 'favorite-button active' : 'favorite-button'} onClick={toggleEditFavorite} type="button">
-                      {isEditFavorite ? 'Favorite ✓' : 'Mark as favorite'}
-                    </button>
-                    <label>
-                      Book type
-                      <select value={editForm.bookType} onChange={(event) => updateEditForm('bookType', event.target.value)}>
-                        {bookTypeOptions.map((type) => <option key={type}>{type}</option>)}
-                      </select>
-                    </label>
-                    <div className="form-row">
-                      <label>
-                        Series name
-                        <input value={editForm.seriesName} onChange={(event) => updateEditForm('seriesName', event.target.value)} />
-                        {!!editSeriesSuggestions.length && (
-                          <div className="suggestion-list">
-                            {editSeriesSuggestions.map((seriesName) => (
-                              <button key={seriesName} onClick={() => selectEditSeries(seriesName)} type="button">{seriesName}</button>
-                            ))}
-                          </div>
-                        )}
-                      </label>
-                      <label>
-                        Book #
-                        <input value={editForm.seriesNumber} onChange={(event) => updateEditForm('seriesNumber', event.target.value)} />
-                      </label>
-                    </div>
-                    <label>
-                      Pages
-                      <input type="number" value={editForm.pages} onChange={(event) => updateEditForm('pages', event.target.value)} min="1" />
-                    </label>
-                    <label className="toggle-field">
-                      <input checked={editForm.newberyAward} onChange={(event) => updateEditForm('newberyAward', event.target.checked)} type="checkbox" />
-                      Newbery Award winner
-                    </label>
-                    <div className="edit-actions">
-                      <button className="book-action-button" type="submit">Save changes</button>
-                      <button className="book-action-button secondary" onClick={cancelEditing} type="button">Cancel</button>
-                    </div>
-                  </form>
-                  </div>
-                ) : (
-                  <>
+                <>
                     <div className="book-card-header">
                       <div>
                         <span className="status-pill">{book.status}</span>
@@ -1578,7 +1570,6 @@ function App() {
                     )}
                     {book.notes && <p className="notes">{book.notes}</p>}
                   </>
-                )}
               </article>
             ))}
             {!visibleBooks.length && (
@@ -1596,6 +1587,146 @@ function App() {
           </div>
         </div>
       </section>
+      {editingId && editForm && (
+        <>
+          <button className="modal-backdrop" onClick={cancelEditing} type="button" aria-label="Close edit panel" />
+          <form className="edit-book-form edit-drawer" onSubmit={saveBookEdit}>
+            <div className="form-heading">
+              <div>
+                <h2>Edit book</h2>
+                <p>Update the key details without leaving your library view.</p>
+              </div>
+              <button className="close-drawer-button" onClick={cancelEditing} type="button">×</button>
+            </div>
+            <div className="form-row">
+              <label>
+                Title
+                <input
+                  value={editForm.title}
+                  onChange={(event) => updateEditForm('title', event.target.value)}
+                />
+              </label>
+              <label>
+                Author
+                <input value={editForm.author} onChange={(event) => updateEditForm('author', event.target.value)} />
+                {!!editAuthorSuggestions.length && (
+                  <div className="suggestion-list">
+                    {editAuthorSuggestions.map((author) => (
+                      <button key={author} onClick={() => selectEditAuthor(author)} type="button">{author}</button>
+                    ))}
+                  </div>
+                )}
+              </label>
+            </div>
+            <div className="form-row">
+              <label>
+                Status
+                <select value={editForm.status} onChange={(event) => updateEditForm('status', event.target.value)}>
+                  {statusOptions.map((status) => <option key={status}>{status}</option>)}
+                </select>
+              </label>
+              {editForm.status === 'Read' && (
+                <label>
+                  Rating
+                  <select value={editForm.rating ?? ''} onChange={(event) => updateEditForm('rating', event.target.value)}>
+                    <option value="">No rating</option>
+                    {[5, 4, 3, 2, 1].map((rating) => <option key={rating}>{rating}</option>)}
+                  </select>
+                </label>
+              )}
+            </div>
+            {editForm.status === 'Read' && (
+              <label>
+                Date finished
+                <input type="date" value={editForm.dateFinished} onChange={(event) => updateEditForm('dateFinished', event.target.value)} />
+              </label>
+            )}
+            <label>
+              Notes
+              <textarea value={editForm.notes} onChange={(event) => updateEditForm('notes', event.target.value)} />
+            </label>
+            <label>
+              Tags
+              <input value={editForm.tags} onChange={(event) => updateEditForm('tags', event.target.value)} />
+              {!!editTagSuggestions.length && (
+                <div className="suggestion-list">
+                  {editTagSuggestions.map((tag) => (
+                    <button key={tag} onClick={() => addEditTagSuggestion(tag)} type="button">{tag}</button>
+                  ))}
+                </div>
+              )}
+            </label>
+            <button className={isEditFavorite ? 'favorite-button active' : 'favorite-button'} onClick={toggleEditFavorite} type="button">
+              {isEditFavorite ? 'Favorite ✓' : 'Mark as favorite'}
+            </button>
+            <label>
+              Book type
+              <select value={editForm.bookType} onChange={(event) => updateEditForm('bookType', event.target.value)}>
+                {bookTypeOptions.map((type) => <option key={type}>{type}</option>)}
+              </select>
+            </label>
+            <div className="form-row">
+              <label>
+                Series name
+                <input value={editForm.seriesName} onChange={(event) => updateEditForm('seriesName', event.target.value)} />
+                {!!editSeriesSuggestions.length && (
+                  <div className="suggestion-list">
+                    {editSeriesSuggestions.map((seriesName) => (
+                      <button key={seriesName} onClick={() => selectEditSeries(seriesName)} type="button">{seriesName}</button>
+                    ))}
+                  </div>
+                )}
+              </label>
+              <label>
+                Book #
+                <input value={editForm.seriesNumber} onChange={(event) => updateEditForm('seriesNumber', event.target.value)} />
+              </label>
+            </div>
+            <label>
+              Pages
+              <input type="number" value={editForm.pages} onChange={(event) => updateEditForm('pages', event.target.value)} min="1" />
+            </label>
+            <label className="toggle-field">
+              <input checked={editForm.newberyAward} onChange={(event) => updateEditForm('newberyAward', event.target.checked)} type="checkbox" />
+              Newbery Award winner
+            </label>
+            <div className="edit-actions">
+              <button className="book-action-button" type="submit">Save changes</button>
+              <button className="book-action-button secondary" onClick={cancelEditing} type="button">Cancel</button>
+            </div>
+          </form>
+        </>
+      )}
+      {showCustomizeModal && (
+        <>
+          <button className="modal-backdrop" onClick={() => setShowCustomizeModal(false)} type="button" aria-label="Close customize panel" />
+          <section className="customize-drawer">
+            <div className="form-heading">
+              <div>
+                <h2>Customize library</h2>
+                <p>Keep it personal without adding too much setup.</p>
+              </div>
+              <button className="close-drawer-button" onClick={() => setShowCustomizeModal(false)} type="button">×</button>
+            </div>
+            <label>
+              Library title
+              <input value={settings.displayTitle} onChange={(event) => updateLibraryTitle(event.target.value)} placeholder="My Reading Shelf" />
+            </label>
+            <label>
+              Theme
+              <select value={settings.theme} onChange={(event) => updateLibraryTheme(event.target.value)}>
+                {themeOptions.map((theme) => <option key={theme.value} value={theme.value}>{theme.label}</option>)}
+              </select>
+            </label>
+            <label>
+              Custom statuses
+              <input value={customStatusInput} onChange={(event) => setCustomStatusInput(event.target.value)} placeholder="Paused, Borrowed, Re-reading" />
+            </label>
+            <p className="settings-helper">The default statuses stay available. Add only a few custom ones, separated by commas.</p>
+            <button className="book-action-button" onClick={saveCustomStatuses} type="button">Save statuses</button>
+          </section>
+        </>
+      )}
       {showBackToTop && (
         <button className="back-to-top-button" onClick={scrollToTop} type="button" aria-label="Back to top">
           <ArrowUp size={20} />

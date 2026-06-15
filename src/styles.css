@@ -93,6 +93,18 @@ button:not(:disabled):hover {
   isolation: isolate;
 }
 
+.theme-forest .hero {
+  background: linear-gradient(135deg, #1f3d2b 0%, #3f6f4f 55%, #7aa874 100%);
+}
+
+.theme-ocean .hero {
+  background: linear-gradient(135deg, #1f3a5f 0%, #256d85 55%, #63a8c6 100%);
+}
+
+.theme-lavender .hero {
+  background: linear-gradient(135deg, #3f315f 0%, #6b5b95 55%, #b18fcf 100%);
+}
+
 .hero-card::before {
   position: absolute;
   width: 150px;
@@ -303,6 +315,21 @@ button:not(:disabled):hover {
   background: #9f2f24;
 }
 
+.customize-trigger {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin: 18px 0 0;
+  border: 1px solid rgba(73, 54, 40, 0.1);
+  border-radius: 999px;
+  padding: 11px 15px;
+  color: #493628;
+  background: rgba(255, 252, 247, 0.9);
+  box-shadow: 0 12px 34px rgba(73, 54, 40, 0.08);
+  font-weight: 900;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -377,7 +404,8 @@ button:not(:disabled):hover {
 }
 
 .book-form.drawer-open,
-.edit-drawer {
+.edit-drawer,
+.customize-drawer {
   position: fixed;
   top: 24px;
   right: 24px;
@@ -842,15 +870,31 @@ textarea {
   gap: 14px;
 }
 
-.edit-modal-shell {
-  display: contents;
-}
-
 .edit-drawer {
+  display: grid;
+  gap: 14px;
   padding: 18px;
   border: 1px solid #eaded2;
   border-radius: 24px;
   background: #fff7ed;
+}
+
+.customize-drawer {
+  z-index: 40;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid #eaded2;
+  border-radius: 24px;
+  background: #fff7ed;
+}
+
+.settings-helper {
+  margin: -4px 0 0;
+  color: #6b625b;
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
 
 .edit-actions {
