@@ -1098,7 +1098,7 @@ function App() {
         <Stat icon={<CheckCircle2 />} label="Finished" value={stats.read} />
         <Stat icon={<BookOpen />} label="In progress" value={stats.reading} />
         <Stat icon={<Star />} label="Avg read rating" value={stats.average} />
-        <Stat icon={<Target />} label="Yearly goal" value={`${advancedStats.yearReadCount}/${yearlyGoal || '—'}`} />
+        {yearlyGoal > 0 && <Stat icon={<Target />} label="Yearly goal" value={`${advancedStats.yearReadCount}/${yearlyGoal}`} />}
       </section>
 
       {yearlyGoal > 0 && (
