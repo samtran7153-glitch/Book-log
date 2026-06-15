@@ -305,7 +305,7 @@ button:not(:disabled):hover {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 18px;
   margin: 24px 0;
 }
@@ -428,6 +428,13 @@ button:not(:disabled):hover {
   color: #7a3f34;
   font-size: 0.9rem;
   font-weight: 700;
+}
+
+.duplicate-warning {
+  margin: -2px 0 0;
+  color: #8a5a00;
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 .save-error,
@@ -898,6 +905,343 @@ textarea {
   font-weight: 900;
 }
 
+.goal-progress-section {
+  border: 1px solid rgba(73, 54, 40, 0.1);
+  border-radius: 24px;
+  padding: 20px 24px;
+  margin: 24px 0;
+  background: rgba(255, 252, 247, 0.84);
+  box-shadow: 0 18px 50px rgba(73, 54, 40, 0.09);
+}
+
+.goal-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.goal-progress-info {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #493628;
+  font-weight: 700;
+}
+
+.goal-progress-text {
+  color: #6b625b;
+  font-weight: 700;
+}
+
+.goal-progress-bar {
+  height: 12px;
+  border: 1px solid #e5d6c8;
+  border-radius: 999px;
+  background: #fffdfa;
+  overflow: hidden;
+}
+
+.goal-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7aa874 0%, #5b9c5a 100%);
+  transition: width 0.5s ease;
+}
+
+.goal-remaining {
+  margin: 10px 0 0;
+  color: #6b625b;
+  font-weight: 700;
+}
+
+.goal-complete {
+  margin: 10px 0 0;
+  color: #245b35;
+  font-weight: 800;
+}
+
+.stats-panel {
+  border: 1px solid rgba(73, 54, 40, 0.1);
+  border-radius: 24px;
+  margin: 24px 0;
+  background: rgba(255, 252, 247, 0.84);
+  box-shadow: 0 18px 50px rgba(73, 54, 40, 0.09);
+  overflow: hidden;
+}
+
+.stats-panel.open {
+  padding: 20px 24px;
+}
+
+.stats-toggle-button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border: 0;
+  border-radius: 24px;
+  padding: 16px;
+  color: #493628;
+  background: #fff7ed;
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.stats-panel.open .stats-toggle-button {
+  border-radius: 16px;
+  padding: 12px;
+  margin-bottom: 20px;
+  background: #f6ddc8;
+}
+
+.stats-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.stats-section {
+  border: 1px solid #e5d6c8;
+  border-radius: 18px;
+  padding: 18px;
+  background: #fffdfa;
+}
+
+.stats-section h3 {
+  margin: 0 0 14px;
+  color: #493628;
+  font-size: 1.1rem;
+}
+
+.goal-input-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.goal-input-row label {
+  flex: 1;
+  min-width: 200px;
+}
+
+.goal-input-row input {
+  margin-bottom: 0;
+}
+
+.goal-input-row button {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 16px;
+  color: #fff;
+  background: #493628;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.secondary-button {
+  background: #b36a5e !important;
+}
+
+.goal-stats {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #eaded2;
+}
+
+.goal-stats p {
+  margin: 6px 0;
+  color: #6b625b;
+}
+
+.genre-list,
+.monthly-trends {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.genre-item,
+.month-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #f8ece1;
+}
+
+.genre-name,
+.month-name {
+  color: #493628;
+  font-weight: 700;
+}
+
+.genre-count,
+.month-count {
+  color: #6b625b;
+  font-weight: 700;
+}
+
+.no-data {
+  margin: 0;
+  color: #6b625b;
+  font-style: italic;
+}
+
+.pages-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pages-stats p {
+  margin: 0;
+  color: #6b625b;
+}
+
+.author-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.author-chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  border: 1px solid #e5d6c8;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #493628;
+  background: #fffdfa;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.author-chip:hover {
+  border-color: #b36a5e;
+  background: #f8ece1;
+}
+
+.author-chip.active {
+  border-color: #b36a5e;
+  color: #fff;
+  background: #b36a5e;
+}
+
+.author-book-count {
+  border-radius: 999px;
+  padding: 2px 6px;
+  color: #6b625b;
+  background: #f6ddc8;
+  font-size: 0.72rem;
+}
+
+.author-chip.active .author-book-count {
+  color: #7a3f34;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.more-authors {
+  margin: 0;
+  color: #6b625b;
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
+.author-detail {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #eaded2;
+}
+
+.author-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.author-detail-header h4 {
+  margin: 0;
+  color: #493628;
+  font-size: 1.1rem;
+}
+
+.close-button {
+  border: 0;
+  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  color: #6b625b;
+  background: #eaded2;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.author-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.author-stat {
+  padding: 10px;
+  border-radius: 10px;
+  background: #f8ece1;
+}
+
+.author-stat-label {
+  display: block;
+  color: #6b625b;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.author-stat-value {
+  display: block;
+  color: #493628;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.author-genres {
+  margin-bottom: 12px;
+  color: #6b625b;
+  font-size: 0.9rem;
+}
+
+.author-books {
+  color: #6b625b;
+  font-size: 0.9rem;
+}
+
+.author-books ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.author-books li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.book-title-mini {
+  color: #493628;
+  font-weight: 700;
+}
+
+.book-status-mini {
+  color: #6b625b;
+  font-size: 0.82rem;
+}
+
 @media (max-width: 860px) {
   .app-shell {
     width: min(100% - 22px, 1180px);
@@ -909,6 +1253,10 @@ textarea {
   .stats-grid,
   .toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .hero {
@@ -976,5 +1324,15 @@ textarea {
     right: 16px;
     bottom: 16px;
     padding: 12px 14px;
+  }
+
+  .stats-content {
+    grid-template-columns: 1fr;
+  }
+
+  .goal-progress-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 }

@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ArrowUp, Award, BookOpen, Calendar, CheckCircle2, Copy, Edit3, Layers, Library, Plus, Search, Star, Trash2 } from 'lucide-react';
+import { ArrowUp, Award, BookOpen, Calendar, CheckCircle2, Copy, Edit3, Layers, Library, Plus, Search, Star, Trash2, Target, TrendingUp, BarChart3, User, Heart } from 'lucide-react';
 import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import './styles.css';
 
 const STORAGE_KEY = 'book-log-books';
 const TENANT_KEY = 'book-log-tenant';
+const GOALS_KEY = 'book-log-goals';
 const DEFAULT_TENANT = 'default';
 const statusOptions = ['Read', 'In Progress', 'Want to Read'];
 const bookTypeOptions = ['Fiction', 'Non-fiction', 'Realistic Fiction', 'Fantasy', 'Sci-fi', 'Mystery', 'Biography', 'Poetry', 'Historical Fiction', 'Education'];
@@ -23,6 +24,7 @@ const defaultForm = {
   seriesNumber: '',
   favorite: false,
   newberyAward: false,
+  pages: '',
 };
 
 function normalizeStatus(status) {
@@ -89,6 +91,27 @@ function getStorageKey(tenantId) {
   return `${STORAGE_KEY}-${tenantId}`;
 }
 
+function getGoalsKey(tenantId) {
+  return `${GOALS_KEY}-${tenantId}`;
+}
+
+function loadGoals(tenantId) {
+  if (!tenantId) {
+    return { yearlyGoal: 0 };
+  }
+
+  const saved = localStorage.getItem(getGoalsKey(tenantId));
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      return { yearlyGoal: 0 };
+    }
+  }
+
+  return { yearlyGoal: 0 };
+}
+
 function getBooksDoc(tenantId) {
   return doc(db, 'bookLogs', tenantId);
 }
@@ -123,6 +146,7 @@ function normalizeBook(book) {
     seriesNumber: book.seriesNumber || '',
     favorite: Boolean(book.favorite),
     newberyAward: Boolean(book.newberyAward),
+    pages: book.pages || '',
   };
 }
 
@@ -209,7 +233,13 @@ function App() {
   const [isSavingBooks, setIsSavingBooks] = useState(false);
   const [copiedBookId, setCopiedBookId] = useState(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [showStatsPanel, setShowStatsPanel] = useState(false);
+  const [showAuthorPanel, setShowAuthorPanel] = useState(false);
+  const [selectedAuthor, setSelectedAuthor] = useState(null);
+  const [yearlyGoal, setYearlyGoal] = useState(() => loadGoals(initialTenant).yearlyGoal);
+  const [goalInput, setGoalInput] = useState('');
   const hasSyncedCloud = useRef(false);
+  const hasSubcollectionBooks = useRef(false);
 
   useEffect(() => {
     if (!tenantId || !accessGranted) {
@@ -221,6 +251,14 @@ function App() {
 
   useEffect(() => {
     if (!tenantId || !accessGranted) {
+      return;
+    }
+
+    localStorage.setItem(getGoalsKey(tenantId), JSON.stringify({ yearlyGoal }));
+  }, [accessGranted, yearlyGoal, tenantId]);
+
+  useEffect(() => {
+    if (!tenantId || !accessGranted) {
       return undefined;
     }
 
@@ -229,6 +267,7 @@ function App() {
 
     localStorage.setItem(TENANT_KEY, tenantId);
     hasSyncedCloud.current = false;
+    hasSubcollectionBooks.current = false;
     setBooks(loadLocalBooks(tenantId));
 
     const unsubscribeBooks = onSnapshot(booksCollection, (snapshot) => {
@@ -237,6 +276,7 @@ function App() {
       }
 
       hasSyncedCloud.current = true;
+      hasSubcollectionBooks.current = true;
       setBooks(snapshot.docs.map((bookSnapshot) => normalizeBook({ id: bookSnapshot.id, ...bookSnapshot.data() })));
       setSaveError('');
     }, () => {
@@ -246,13 +286,16 @@ function App() {
     const unsubscribeLibrary = onSnapshot(booksDoc, (snapshot) => {
       if (snapshot.exists()) {
         const cloudBooks = snapshot.data().books || [];
-        hasSyncedCloud.current = true;
-        if (cloudBooks.length) {
+        if (cloudBooks.length && !hasSubcollectionBooks.current) {
+          hasSyncedCloud.current = true;
           setBooks(cloudBooks.map(normalizeBook));
           cloudBooks.forEach((book) => {
             setDoc(getBookDoc(tenantId, book.id), normalizeBook(book), { merge: true }).catch(() => {
               setSaveError('Could not migrate all books to the improved cloud format.');
             });
+          });
+          setDoc(booksDoc, { books: [] }, { merge: true }).catch(() => {
+            setSaveError('Could not finish migrating your library data.');
           });
         }
         setSaveError('');
@@ -312,18 +355,65 @@ function App() {
     const read = books.filter((book) => book.status === 'Read');
     const ratedRead = read.filter((book) => book.rating);
     const average = ratedRead.length ? ratedRead.reduce((sum, book) => sum + Number(book.rating), 0) / ratedRead.length : 0;
+    const totalPagesRead = read.reduce((sum, book) => sum + (Number(book.pages) || 0), 0);
 
     return {
       total: books.length,
       read: read.length,
       reading: books.filter((book) => book.status === 'In Progress').length,
       average: average.toFixed(1),
+      totalPagesRead,
     };
   }, [books]);
 
   const authors = useMemo(() => {
     return [...new Set(books.map((book) => book.author).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   }, [books]);
+
+  const authorStats = useMemo(() => {
+    const stats = {};
+    books.forEach((book) => {
+      const author = book.author;
+      if (!author) return;
+      
+      if (!stats[author]) {
+        stats[author] = {
+          totalBooks: 0,
+          readBooks: 0,
+          totalPages: 0,
+          avgRating: 0,
+          ratedBooks: 0,
+          genres: new Set(),
+        };
+      }
+      
+      stats[author].totalBooks++;
+      stats[author].genres.add(book.bookType);
+      
+      if (book.status === 'Read') {
+        stats[author].readBooks++;
+        stats[author].totalPages += Number(book.pages) || 0;
+        
+        if (book.rating) {
+          stats[author].ratedBooks++;
+          stats[author].avgRating += Number(book.rating);
+        }
+      }
+    });
+    
+    Object.keys(stats).forEach((author) => {
+      const stat = stats[author];
+      stat.avgRating = stat.ratedBooks > 0 ? (stat.avgRating / stat.ratedBooks).toFixed(1) : 0;
+      stat.genres = Array.from(stat.genres);
+    });
+    
+    return stats;
+  }, [books]);
+
+  const selectedAuthorStats = selectedAuthor ? authorStats[selectedAuthor] : null;
+  const selectedAuthorBooks = selectedAuthor 
+    ? books.filter((book) => book.author === selectedAuthor).sort((a, b) => a.title.localeCompare(b.title))
+    : [];
 
   const seriesNames = useMemo(() => {
     return [...new Set(books.map((book) => book.seriesName).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -332,6 +422,49 @@ function App() {
   const tagNames = useMemo(() => {
     return [...new Set(books.flatMap((book) => book.tags || []))].sort((a, b) => a.localeCompare(b));
   }, [books]);
+
+  const advancedStats = useMemo(() => {
+    const read = books.filter((book) => book.status === 'Read');
+    const currentYear = new Date().getFullYear();
+    const yearRead = read.filter((book) => {
+      if (!book.dateFinished) return false;
+      return new Date(book.dateFinished).getFullYear() === currentYear;
+    });
+
+    // Genre breakdown
+    const genreBreakdown = {};
+    books.forEach((book) => {
+      const genre = book.bookType || 'Unknown';
+      genreBreakdown[genre] = (genreBreakdown[genre] || 0) + 1;
+    });
+
+    // Monthly trends
+    const monthlyTrends = {};
+    read.forEach((book) => {
+      if (!book.dateFinished) return;
+      const date = new Date(book.dateFinished);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      monthlyTrends[monthKey] = (monthlyTrends[monthKey] || 0) + 1;
+    });
+
+    // Pages per book average
+    const pagesPerBook = read.filter((book) => book.pages).length > 0
+      ? Math.round(read.filter((book) => book.pages).reduce((sum, book) => sum + Number(book.pages), 0) / read.filter((book) => book.pages).length)
+      : 0;
+
+    // Goal progress
+    const goalProgress = yearlyGoal > 0 ? Math.round((yearRead.length / yearlyGoal) * 100) : 0;
+    const goalRemaining = Math.max(0, yearlyGoal - yearRead.length);
+
+    return {
+      genreBreakdown,
+      monthlyTrends,
+      pagesPerBook,
+      goalProgress,
+      goalRemaining,
+      yearReadCount: yearRead.length,
+    };
+  }, [books, yearlyGoal]);
 
   const authorSuggestions = useMemo(() => {
     const queryText = form.author.trim().toLowerCase();
@@ -402,6 +535,16 @@ function App() {
   const isFavorite = Boolean(form.favorite);
   const isEditFavorite = Boolean(editForm?.favorite);
   const canAddBook = Boolean(form.title.trim() && form.author.trim());
+  
+  const duplicateBook = useMemo(() => {
+    if (!form.title.trim() || !form.author.trim()) {
+      return null;
+    }
+    return books.find((book) => 
+      book.title.toLowerCase().trim() === form.title.toLowerCase().trim() &&
+      book.author.toLowerCase().trim() === form.author.toLowerCase().trim()
+    );
+  }, [books, form.title, form.author]);
 
   const visibleBooks = useMemo(() => {
     return books
@@ -740,6 +883,10 @@ function App() {
       return;
     }
 
+    if (duplicateBook && !window.confirm(`"${form.title}" by ${form.author} already exists in your book log. Add it anyway?`)) {
+      return;
+    }
+
     const nextBook = {
       ...form,
       id: crypto.randomUUID(),
@@ -753,6 +900,7 @@ function App() {
       seriesNumber: form.seriesNumber.trim(),
       favorite: Boolean(form.favorite),
       newberyAward: Boolean(form.newberyAward),
+      pages: form.pages ? Number(form.pages) : '',
     };
 
     saveBooks(
@@ -818,6 +966,7 @@ function App() {
       seriesNumber: editForm.seriesNumber.trim(),
       favorite: Boolean(editForm.favorite),
       newberyAward: Boolean(editForm.newberyAward),
+      pages: editForm.pages ? Number(editForm.pages) : '',
     };
 
     saveBooks(
@@ -949,6 +1098,171 @@ function App() {
         <Stat icon={<CheckCircle2 />} label="Finished" value={stats.read} />
         <Stat icon={<BookOpen />} label="In progress" value={stats.reading} />
         <Stat icon={<Star />} label="Avg read rating" value={stats.average} />
+        <Stat icon={<Target />} label="Yearly goal" value={`${advancedStats.yearReadCount}/${yearlyGoal || '—'}`} />
+      </section>
+
+      {yearlyGoal > 0 && (
+        <section className="goal-progress-section">
+          <div className="goal-progress-header">
+            <div className="goal-progress-info">
+              <Target size={18} />
+              <span>Reading Goal Progress</span>
+            </div>
+            <span className="goal-progress-text">{advancedStats.yearReadCount} of {yearlyGoal} books ({advancedStats.goalProgress}%)</span>
+          </div>
+          <div className="goal-progress-bar">
+            <div className="goal-progress-fill" style={{ width: `${Math.min(advancedStats.goalProgress, 100)}%` }} />
+          </div>
+          {advancedStats.goalRemaining > 0 && (
+            <p className="goal-remaining">{advancedStats.goalRemaining} more books to reach your goal!</p>
+          )}
+          {advancedStats.goalProgress >= 100 && (
+            <p className="goal-complete">🎉 You've reached your reading goal!</p>
+          )}
+        </section>
+      )}
+
+      <section className={showStatsPanel ? 'stats-panel open' : 'stats-panel'}>
+        <button className="stats-toggle-button" onClick={() => setShowStatsPanel((current) => !current)} type="button">
+          <BarChart3 size={16} />
+          <span>Advanced Statistics</span>
+          <TrendingUp size={16} />
+        </button>
+        {showStatsPanel && (
+          <div className="stats-content">
+            <div className="stats-section">
+              <h3>📖 Reading Goals</h3>
+              <div className="goal-input-row">
+                <label>
+                  Yearly reading goal:
+                  <input
+                    type="number"
+                    value={goalInput}
+                    onChange={(event) => setGoalInput(event.target.value)}
+                    placeholder="12"
+                    min="1"
+                  />
+                </label>
+                <button onClick={() => { setYearlyGoal(Number(goalInput)); setGoalInput(''); }} type="button">
+                  Set goal
+                </button>
+                {yearlyGoal > 0 && (
+                  <button className="secondary-button" onClick={() => { setYearlyGoal(0); setGoalInput(''); }} type="button">
+                    Clear
+                  </button>
+                )}
+              </div>
+              {yearlyGoal > 0 && (
+                <div className="goal-stats">
+                  <p><strong>Books read this year:</strong> {advancedStats.yearReadCount}</p>
+                  <p><strong>Progress:</strong> {advancedStats.goalProgress}%</p>
+                  <p><strong>Remaining:</strong> {advancedStats.goalRemaining} books</p>
+                </div>
+              )}
+            </div>
+
+            <div className="stats-section">
+              <h3>📊 Genre Breakdown</h3>
+              <div className="genre-list">
+                {Object.entries(advancedStats.genreBreakdown)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([genre, count]) => (
+                    <div key={genre} className="genre-item">
+                      <span className="genre-name">{genre}</span>
+                      <span className="genre-count">{count} book{count !== 1 ? 's' : ''}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            <div className="stats-section">
+              <h3>📈 Monthly Reading Trends</h3>
+              <div className="monthly-trends">
+                {Object.entries(advancedStats.monthlyTrends)
+                  .sort((a, b) => b[0].localeCompare(a[0]))
+                  .slice(0, 6)
+                  .map(([month, count]) => (
+                    <div key={month} className="month-item">
+                      <span className="month-name">{month}</span>
+                      <span className="month-count">{count} book{count !== 1 ? 's' : ''}</span>
+                    </div>
+                  ))}
+                {Object.keys(advancedStats.monthlyTrends).length === 0 && (
+                  <p className="no-data">No finished books with dates yet</p>
+                )}
+              </div>
+            </div>
+
+            <div className="stats-section">
+              <h3>📄 Pages Statistics</h3>
+              <div className="pages-stats">
+                <p><strong>Total pages read:</strong> {stats.totalPagesRead.toLocaleString()}</p>
+                <p><strong>Average pages per book:</strong> {advancedStats.pagesPerBook}</p>
+              </div>
+            </div>
+
+            <div className="stats-section">
+              <h3>👤 Author Profiles</h3>
+              <div className="author-list">
+                {authors.slice(0, 8).map((author) => (
+                  <button
+                    key={author}
+                    className={`author-chip ${selectedAuthor === author ? 'active' : ''}`}
+                    onClick={() => setSelectedAuthor(selectedAuthor === author ? null : author)}
+                    type="button"
+                  >
+                    <User size={14} />
+                    {author}
+                    <span className="author-book-count">{authorStats[author]?.totalBooks || 0}</span>
+                  </button>
+                ))}
+                {authors.length > 8 && (
+                  <p className="more-authors">+{authors.length - 8} more authors</p>
+                )}
+              </div>
+              {selectedAuthorStats && (
+                <div className="author-detail">
+                  <div className="author-detail-header">
+                    <h4>{selectedAuthor}</h4>
+                    <button onClick={() => setSelectedAuthor(null)} type="button" className="close-button">×</button>
+                  </div>
+                  <div className="author-stats-grid">
+                    <div className="author-stat">
+                      <span className="author-stat-label">Total Books</span>
+                      <span className="author-stat-value">{selectedAuthorStats.totalBooks}</span>
+                    </div>
+                    <div className="author-stat">
+                      <span className="author-stat-label">Read</span>
+                      <span className="author-stat-value">{selectedAuthorStats.readBooks}</span>
+                    </div>
+                    <div className="author-stat">
+                      <span className="author-stat-label">Avg Rating</span>
+                      <span className="author-stat-value">{selectedAuthorStats.avgRating || '—'}</span>
+                    </div>
+                    <div className="author-stat">
+                      <span className="author-stat-label">Total Pages</span>
+                      <span className="author-stat-value">{selectedAuthorStats.totalPages.toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="author-genres">
+                    <strong>Genres:</strong> {selectedAuthorStats.genres.join(', ')}
+                  </div>
+                  <div className="author-books">
+                    <strong>Books:</strong>
+                    <ul>
+                      {selectedAuthorBooks.map((book) => (
+                        <li key={book.id}>
+                          <span className="book-title-mini">{book.title}</span>
+                          <span className="book-status-mini">{book.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="panel layout-grid">
@@ -1048,6 +1362,10 @@ function App() {
                   <input value={form.seriesNumber} onChange={(event) => updateForm('seriesNumber', event.target.value)} placeholder="1" />
                 </label>
               </div>
+              <label>
+                Pages
+                <input type="number" value={form.pages} onChange={(event) => updateForm('pages', event.target.value)} placeholder="300" min="1" />
+              </label>
               <label className="toggle-field">
                 <input checked={form.newberyAward} onChange={(event) => updateForm('newberyAward', event.target.checked)} type="checkbox" />
                 Newbery Award winner
@@ -1055,6 +1373,7 @@ function App() {
             </div>
           )}
           {addAttempted && !canAddBook && <p className="form-helper">Add a title and author to save this book.</p>}
+          {duplicateBook && <p className="duplicate-warning">⚠️ This book already exists in your library</p>}
           {saveError && <p className="save-error">{saveError}</p>}
           {isSavingBooks && <p className="save-status">Saving changes...</p>}
           <button disabled={isSavingBooks} type="submit"><Plus size={18} /> {isSavingBooks ? 'Saving...' : 'Add book'}</button>
@@ -1164,6 +1483,10 @@ function App() {
                         <input value={editForm.seriesNumber} onChange={(event) => updateEditForm('seriesNumber', event.target.value)} />
                       </label>
                     </div>
+                    <label>
+                      Pages
+                      <input type="number" value={editForm.pages} onChange={(event) => updateEditForm('pages', event.target.value)} min="1" />
+                    </label>
                     <label className="toggle-field">
                       <input checked={editForm.newberyAward} onChange={(event) => updateEditForm('newberyAward', event.target.checked)} type="checkbox" />
                       Newbery Award winner
