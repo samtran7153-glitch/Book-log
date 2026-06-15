@@ -10,6 +10,7 @@ const STORAGE_KEY = 'book-log-books';
 const TENANT_KEY = 'book-log-tenant';
 const GOALS_KEY = 'book-log-goals';
 const SETTINGS_KEY = 'book-log-settings';
+const DISMISSED_BANNER_KEY = 'book-log-dismissed-banner';
 const DEFAULT_TENANT = 'default';
 const baseStatusOptions = ['Read', 'In Progress', 'Want to Read'];
 const themeOptions = [
@@ -110,6 +111,24 @@ function getGoalsKey(tenantId) {
 
 function getSettingsKey(tenantId) {
   return `${SETTINGS_KEY}-${tenantId}`;
+}
+
+function getDismissedBannerKey(tenantId) {
+  return `${DISMISSED_BANNER_KEY}-${tenantId}`;
+}
+
+function loadDismissedBanner(tenantId) {
+  if (!tenantId) {
+    return false;
+  }
+  return localStorage.getItem(getDismissedBannerKey(tenantId)) === 'true';
+}
+
+function saveDismissedBanner(tenantId, dismissed) {
+  if (!tenantId) {
+    return;
+  }
+  localStorage.setItem(getDismissedBannerKey(tenantId), dismissed ? 'true' : 'false');
 }
 
 function normalizeSettings(settings = {}) {
@@ -266,6 +285,7 @@ function App() {
   const [libraryInvites, setLibraryInvites] = useState([]);
   const [inviteEmailInput, setInviteEmailInput] = useState('');
   const [inviteError, setInviteError] = useState('');
+  const [dismissedOwnershipBanner, setDismissedOwnershipBanner] = useState(() => loadDismissedBanner(initialTenant));
   const [renameInput, setRenameInput] = useState(initialTenant || '');
   const [libraryError, setLibraryError] = useState('');
   const [libraryMode, setLibraryMode] = useState(initialTenant ? 'signIn' : 'create');
@@ -346,6 +366,7 @@ function App() {
     setLibraryInvites([]);
     setInviteEmailInput('');
     setInviteError('');
+    setDismissedOwnershipBanner(loadDismissedBanner(tenantId));
 
     const unsubscribeBooks = onSnapshot(booksCollection, (snapshot) => {
       if (snapshot.empty) {
@@ -1008,6 +1029,13 @@ function App() {
     }
   }
 
+  function dismissOwnershipBanner() {
+    setDismissedOwnershipBanner(true);
+    if (tenantId) {
+      saveDismissedBanner(tenantId, true);
+    }
+  }
+
   function updateForm(field, value) {
     setForm((current) => {
       const next = { ...current, [field]: field === 'author' ? titleCase(value) : value };
@@ -1380,27 +1408,32 @@ function App() {
         <Library size={16} /> Customize library
       </button>
 
-      <section className={libraryOwner ? 'ownership-banner claimed' : 'ownership-banner'}>
-        <div>
-          <p className="ownership-eyebrow">Library ownership</p>
-          <h2>{libraryOwner ? (isLibraryOwner ? 'You own this library' : 'This library has an owner') : 'Claim this library'}</h2>
-          <p>
-            {libraryOwner
-              ? isLibraryOwner
-                ? 'Your Google account is connected as the owner. Friend sharing features can build from here.'
-                : `${libraryOwner.displayName || libraryOwner.email || 'A signed-in user'} owns this library.`
-              : currentUser
-                ? 'Connect this shared library to your Google account before inviting friends later.'
-                : 'Sign in with Google to claim this library and prepare it for friend sharing.'}
-          </p>
-        </div>
-        {canClaimLibrary && (
-          <button onClick={claimLibrary} type="button">Claim this library</button>
-        )}
-        {!currentUser && (
-          <button disabled={!authReady} onClick={signInWithGoogle} type="button">Sign in with Google</button>
-        )}
-      </section>
+      {!dismissedOwnershipBanner && (
+        <section className={libraryOwner ? 'ownership-banner claimed' : 'ownership-banner'}>
+          <div>
+            <p className="ownership-eyebrow">Library ownership</p>
+            <h2>{libraryOwner ? (isLibraryOwner ? 'You own this library' : 'This library has an owner') : 'Claim this library'}</h2>
+            <p>
+              {libraryOwner
+                ? isLibraryOwner
+                  ? 'Your Google account is connected as the owner. Friend sharing features can build from here.'
+                  : `${libraryOwner.displayName || libraryOwner.email || 'A signed-in user'} owns this library.`
+                : currentUser
+                  ? 'Connect this shared library to your Google account before inviting friends later.'
+                  : 'Sign in with Google to claim this library and prepare it for friend sharing.'}
+            </p>
+          </div>
+          {isLibraryOwner && (
+            <button className="banner-close-button" onClick={dismissOwnershipBanner} type="button" aria-label="Dismiss banner">×</button>
+          )}
+          {canClaimLibrary && (
+            <button onClick={claimLibrary} type="button">Claim this library</button>
+          )}
+          {!currentUser && (
+            <button disabled={!authReady} onClick={signInWithGoogle} type="button">Sign in with Google</button>
+          )}
+        </section>
+      )}
 
       <section className={yearlyGoal > 0 ? 'stats-grid' : 'stats-grid compact'}>
         <Stat icon={<CheckCircle2 />} label="Finished" value={stats.read} />
