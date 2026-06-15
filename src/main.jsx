@@ -262,6 +262,10 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [libraryOwner, setLibraryOwner] = useState(null);
+  const [libraryInvites, setLibraryInvites] = useState([]);
+  const [inviteEmailInput, setInviteEmailInput] = useState('');
+  const [inviteError, setInviteError] = useState('');
   const [renameInput, setRenameInput] = useState(initialTenant || '');
   const [libraryError, setLibraryError] = useState('');
   const [libraryMode, setLibraryMode] = useState(initialTenant ? 'signIn' : 'create');
@@ -338,6 +342,10 @@ function App() {
     setBooks(loadLocalBooks(tenantId));
     setSettings(loadSettings(tenantId));
     setCustomStatusInput(loadSettings(tenantId).customStatuses.join(', '));
+    setLibraryOwner(null);
+    setLibraryInvites([]);
+    setInviteEmailInput('');
+    setInviteError('');
 
     const unsubscribeBooks = onSnapshot(booksCollection, (snapshot) => {
       if (snapshot.empty) {
@@ -356,9 +364,13 @@ function App() {
     const unsubscribeLibrary = onSnapshot(booksDoc, (snapshot) => {
       if (snapshot.exists()) {
         const nextSettings = normalizeSettings(snapshot.data().settings);
+        const owner = snapshot.data().owner || null;
+        const invites = Array.isArray(snapshot.data().invites) ? snapshot.data().invites : [];
         const cloudBooks = snapshot.data().books || [];
         setSettings(nextSettings);
         setCustomStatusInput(nextSettings.customStatuses.join(', '));
+        setLibraryOwner(owner);
+        setLibraryInvites(invites);
         if (cloudBooks.length) {
           setDoc(booksDoc, { books: [] }, { merge: true }).catch(() => {
             setSaveError('Could not finish cleaning up old library data.');
@@ -615,6 +627,8 @@ function App() {
   const isFavorite = Boolean(form.favorite);
   const isEditFavorite = Boolean(editForm?.favorite);
   const canAddBook = Boolean(form.title.trim() && form.author.trim());
+  const isLibraryOwner = Boolean(currentUser && libraryOwner?.uid === currentUser.uid);
+  const canClaimLibrary = Boolean(currentUser && !libraryOwner);
   const statusOptions = useMemo(() => {
     return [...new Set([...baseStatusOptions, ...settings.customStatuses])];
   }, [settings.customStatuses]);
@@ -837,6 +851,10 @@ function App() {
     setTenantId(null);
     setSettings(defaultSettings);
     setCustomStatusInput('');
+    setLibraryOwner(null);
+    setLibraryInvites([]);
+    setInviteEmailInput('');
+    setInviteError('');
     setBooks([]);
     setAccessGranted(false);
     setLibraryMode('signIn');
@@ -927,6 +945,66 @@ function App() {
       await signOut(auth);
     } catch {
       setAuthError('Could not sign out. Please try again.');
+    }
+  }
+
+  async function claimLibrary() {
+    if (!tenantId || !currentUser || libraryOwner) {
+      return;
+    }
+
+    const owner = {
+      uid: currentUser.uid,
+      email: currentUser.email || '',
+      displayName: currentUser.displayName || currentUser.email || 'Library owner',
+      claimedAt: new Date().toISOString(),
+    };
+
+    try {
+      setLibraryError('');
+      setLibraryOwner(owner);
+      await setDoc(getBooksDoc(tenantId), { owner }, { merge: true });
+    } catch {
+      setLibraryError('Could not claim this library. Please try again.');
+      setLibraryOwner(null);
+    }
+  }
+
+  async function inviteFriend(event) {
+    event.preventDefault();
+
+    if (!tenantId || !isLibraryOwner) {
+      setInviteError('Only the library owner can invite friends.');
+      return;
+    }
+
+    const email = inviteEmailInput.trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      setInviteError('Enter a valid email address.');
+      return;
+    }
+
+    if (libraryInvites.some((invite) => invite.email.toLowerCase() === email)) {
+      setInviteError('That email is already invited.');
+      return;
+    }
+
+    const invite = {
+      email,
+      role: 'editor',
+      invitedAt: new Date().toISOString(),
+      invitedBy: currentUser.uid,
+    };
+    const nextInvites = [...libraryInvites, invite];
+
+    try {
+      setInviteError('');
+      setLibraryInvites(nextInvites);
+      setInviteEmailInput('');
+      await setDoc(getBooksDoc(tenantId), { invites: nextInvites }, { merge: true });
+    } catch {
+      setInviteError('Could not save that invite. Please try again.');
+      setLibraryInvites(libraryInvites);
     }
   }
 
@@ -1207,23 +1285,74 @@ function App() {
           <span className="tenant-nav-hint">{showTenantPanel ? 'Manage sharing and settings' : 'Tap to manage'}</span>
         </div>
         {showTenantPanel && (
-          <div className="tenant-controls">
-            <form onSubmit={renameLibrary}>
-              <input value={renameInput} disabled={libraryBusy} onChange={(event) => setRenameInput(event.target.value)} placeholder="new-library-name" />
-              <button disabled={libraryBusy} type="submit">{libraryBusy ? 'Renaming...' : 'Rename'}</button>
-            </form>
-            <button className="copy-link-button" disabled={libraryBusy} onClick={copyTenantLink} type="button">Copy library link</button>
-            {currentUser ? (
-              <button className="auth-panel-button" disabled={libraryBusy} onClick={signOutUser} type="button">Sign out of Google</button>
-            ) : (
-              <button className="auth-panel-button" disabled={libraryBusy || !authReady} onClick={signInWithGoogle} type="button">Sign in with Google</button>
-            )}
-            <button className="sign-out-button" disabled={libraryBusy} onClick={signOutLibrary} type="button">Sign out</button>
-            <button className="delete-library-button" disabled={libraryBusy} onClick={deleteLibrary} type="button">{libraryBusy ? 'Working...' : 'Delete library'}</button>
+          <div className="library-settings-grid">
+            <section className="library-settings-card">
+              <div>
+                <h3>Library details</h3>
+                <p>Rename this shared library or copy its access link.</p>
+              </div>
+              <form onSubmit={renameLibrary}>
+                <input value={renameInput} disabled={libraryBusy} onChange={(event) => setRenameInput(event.target.value)} placeholder="new-library-name" />
+                <button disabled={libraryBusy} type="submit">{libraryBusy ? 'Renaming...' : 'Rename'}</button>
+              </form>
+              <button className="copy-link-button" disabled={libraryBusy} onClick={copyTenantLink} type="button">Copy library link</button>
+            </section>
+
+            <section className="library-settings-card">
+              <div>
+                <h3>Google account</h3>
+                <p>{currentUser ? currentUser.displayName || currentUser.email : 'Sign in to connect this library to future sharing features.'}</p>
+              </div>
+              <div className="library-settings-actions">
+                {currentUser ? (
+                  <button className="auth-panel-button" disabled={libraryBusy} onClick={signOutUser} type="button">Sign out of Google</button>
+                ) : (
+                  <button className="auth-panel-button" disabled={libraryBusy || !authReady} onClick={signInWithGoogle} type="button">Sign in with Google</button>
+                )}
+                {canClaimLibrary && (
+                  <button className="claim-library-button" disabled={libraryBusy} onClick={claimLibrary} type="button">Claim this library</button>
+                )}
+              </div>
+            </section>
+
+            <section className="library-settings-card collaboration-card">
+              <div>
+                <h3>Invite friends</h3>
+                <p>{isLibraryOwner ? 'Add pending collaborators by email. They will be able to accept later when member access is added.' : 'Only the library owner can invite collaborators.'}</p>
+              </div>
+              <form onSubmit={inviteFriend}>
+                <input
+                  value={inviteEmailInput}
+                  disabled={!isLibraryOwner || libraryBusy}
+                  onChange={(event) => setInviteEmailInput(event.target.value)}
+                  placeholder="friend@example.com"
+                  type="email"
+                />
+                <button disabled={!isLibraryOwner || libraryBusy} type="submit">Invite</button>
+              </form>
+              {!!libraryInvites.length && (
+                <div className="invite-list">
+                  {libraryInvites.map((invite) => (
+                    <span key={`${invite.email}-${invite.invitedAt}`}>{invite.email}</span>
+                  ))}
+                </div>
+              )}
+              {inviteError && <p className="settings-error">{inviteError}</p>}
+            </section>
+
+            <section className="library-settings-card danger">
+              <div>
+                <h3>Library access</h3>
+                <p>Leave this library on this device or delete it completely.</p>
+              </div>
+              <div className="library-settings-actions">
+                <button className="sign-out-button" disabled={libraryBusy} onClick={signOutLibrary} type="button">Sign out of library</button>
+                <button className="delete-library-button" disabled={libraryBusy} onClick={deleteLibrary} type="button">{libraryBusy ? 'Working...' : 'Delete library'}</button>
+              </div>
+            </section>
           </div>
         )}
         {showTenantPanel && libraryError && <p className="library-error">{libraryError}</p>}
-        {showTenantPanel && currentUser && <p className="auth-status">Google account: {currentUser.displayName || currentUser.email}</p>}
         {showTenantPanel && authError && <p className="library-error">{authError}</p>}
       </section>
 
@@ -1250,6 +1379,28 @@ function App() {
       <button className="customize-trigger" onClick={() => setShowCustomizeModal(true)} type="button">
         <Library size={16} /> Customize library
       </button>
+
+      <section className={libraryOwner ? 'ownership-banner claimed' : 'ownership-banner'}>
+        <div>
+          <p className="ownership-eyebrow">Library ownership</p>
+          <h2>{libraryOwner ? (isLibraryOwner ? 'You own this library' : 'This library has an owner') : 'Claim this library'}</h2>
+          <p>
+            {libraryOwner
+              ? isLibraryOwner
+                ? 'Your Google account is connected as the owner. Friend sharing features can build from here.'
+                : `${libraryOwner.displayName || libraryOwner.email || 'A signed-in user'} owns this library.`
+              : currentUser
+                ? 'Connect this shared library to your Google account before inviting friends later.'
+                : 'Sign in with Google to claim this library and prepare it for friend sharing.'}
+          </p>
+        </div>
+        {canClaimLibrary && (
+          <button onClick={claimLibrary} type="button">Claim this library</button>
+        )}
+        {!currentUser && (
+          <button disabled={!authReady} onClick={signInWithGoogle} type="button">Sign in with Google</button>
+        )}
+      </section>
 
       <section className={yearlyGoal > 0 ? 'stats-grid' : 'stats-grid compact'}>
         <Stat icon={<CheckCircle2 />} label="Finished" value={stats.read} />

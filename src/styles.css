@@ -342,19 +342,70 @@ button:not(:disabled):hover {
   font-weight: 700;
 }
 
-.tenant-controls {
-  display: flex;
-  flex-wrap: wrap;
-  width: 100%;
-  gap: 10px;
-  align-items: center;
+.library-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.tenant-controls form {
+.library-settings-card {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto;
-  flex: 1 1 320px;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px;
+  background: var(--surface-soft);
+}
+
+.library-settings-card h3,
+.library-settings-card p {
+  margin: 0;
+}
+
+.library-settings-card h3 {
+  color: var(--primary);
+  font-size: 1rem;
+}
+
+.library-settings-card p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.library-settings-card form,
+.library-settings-actions {
+  display: grid;
   gap: 10px;
+}
+
+.library-settings-card.danger {
+  background: color-mix(in srgb, var(--surface-soft) 82%, #9f2f24 18%);
+}
+
+.collaboration-card {
+  background: linear-gradient(135deg, var(--surface-soft), var(--surface));
+}
+
+.invite-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.invite-list span {
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: var(--primary);
+  background: var(--accent-soft);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.settings-error {
+  color: #9f2f24;
+  font-weight: 900;
 }
 
 .tenant-panel button,
@@ -387,6 +438,10 @@ button:not(:disabled):hover {
   background: #5c4b8b;
 }
 
+.claim-library-button {
+  background: var(--primary-2);
+}
+
 .auth-status {
   margin: -2px 0 0;
   color: var(--muted);
@@ -414,6 +469,62 @@ button:not(:disabled):hover {
   color: var(--primary);
   background: var(--surface);
   box-shadow: 0 12px 34px var(--shadow);
+  font-weight: 900;
+}
+
+.ownership-banner {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 18px 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 20px 22px;
+  color: var(--primary);
+  background: linear-gradient(135deg, var(--surface-soft), var(--surface));
+  box-shadow: 0 18px 50px var(--shadow);
+}
+
+.ownership-banner.claimed {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, var(--accent-soft), var(--surface));
+}
+
+.ownership-banner div {
+  display: grid;
+  gap: 4px;
+}
+
+.ownership-banner h2,
+.ownership-banner p {
+  margin: 0;
+}
+
+.ownership-banner h2 {
+  color: var(--primary);
+  font-size: 1.25rem;
+}
+
+.ownership-banner p:not(.ownership-eyebrow) {
+  color: var(--muted);
+}
+
+.ownership-eyebrow {
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ownership-banner button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 16px;
+  color: #fff;
+  background: var(--primary);
   font-weight: 900;
 }
 
@@ -1528,13 +1639,12 @@ textarea {
     display: none;
   }
 
-  .tenant-controls,
-  .tenant-controls form,
+  .library-settings-grid,
   .library-gate form {
     display: grid;
   }
 
-  .tenant-controls form,
+  .library-settings-grid,
   .form-row {
     grid-template-columns: 1fr;
   }
