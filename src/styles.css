@@ -204,6 +204,31 @@ button:not(:disabled):hover {
   gap: 10px;
 }
 
+.auth-card {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(255, 247, 237, 0.28);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 247, 237, 0.12);
+}
+
+.auth-card div {
+  display: grid;
+  gap: 4px;
+}
+
+.auth-card strong {
+  color: #fff7ed;
+}
+
+.auth-card span {
+  color: #ffeadd;
+  font-size: 0.9rem;
+}
+
 .library-gate button {
   border: 0;
   border-radius: 14px;
@@ -305,6 +330,17 @@ button:not(:disabled):hover {
 
 .copy-link-button {
   background: #493628;
+}
+
+.auth-panel-button {
+  background: #5c4b8b;
+}
+
+.auth-status {
+  margin: -2px 0 0;
+  color: #6b625b;
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 .sign-out-button {

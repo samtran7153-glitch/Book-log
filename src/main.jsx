@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ArrowUp, Award, BookOpen, Calendar, CheckCircle2, Copy, Edit3, Layers, Library, Plus, Search, Star, Trash2, Target, TrendingUp, BarChart3, User, Heart } from 'lucide-react';
+import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 import './styles.css';
 
 const STORAGE_KEY = 'book-log-books';
@@ -258,6 +259,9 @@ function App() {
   const [books, setBooks] = useState(() => loadLocalBooks(initialTenant));
   const [tenantInput, setTenantInput] = useState(initialTenant || '');
   const [tenantPasswordInput, setTenantPasswordInput] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authError, setAuthError] = useState('');
   const [renameInput, setRenameInput] = useState(initialTenant || '');
   const [libraryError, setLibraryError] = useState('');
   const [libraryMode, setLibraryMode] = useState(initialTenant ? 'signIn' : 'create');
@@ -287,6 +291,14 @@ function App() {
   const [goalInput, setGoalInput] = useState('');
   const hasSyncedCloud = useRef(false);
   const hasSubcollectionBooks = useRef(false);
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setAuthReady(true);
+      setAuthError('');
+    });
+  }, []);
 
   useEffect(() => {
     if (!tenantId || !accessGranted) {
@@ -900,6 +912,24 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  async function signInWithGoogle() {
+    try {
+      setAuthError('');
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (error) {
+      setAuthError(`Could not sign in with Google. ${error.code || 'Check Firebase Auth settings.'}`);
+    }
+  }
+
+  async function signOutUser() {
+    try {
+      setAuthError('');
+      await signOut(auth);
+    } catch {
+      setAuthError('Could not sign out. Please try again.');
+    }
+  }
+
   function updateForm(field, value) {
     setForm((current) => {
       const next = { ...current, [field]: field === 'author' ? titleCase(value) : value };
@@ -1138,6 +1168,18 @@ function App() {
           <p className="eyebrow"><Library size={16} /> Personal Library</p>
           <h1>{isCreatingLibrary ? 'Create your library' : 'Sign in to your library'}</h1>
           <p>{isCreatingLibrary ? 'Choose a unique library name and password to start your book log.' : 'Enter your library name and password to open the shared book log.'}</p>
+          <div className="auth-card">
+            <div>
+              <strong>{currentUser ? `Signed in as ${currentUser.displayName || currentUser.email}` : authReady ? 'Optional account sign-in' : 'Checking sign-in...'}</strong>
+              <span>{currentUser ? 'Your account is connected. Library passwords still work while auth is introduced.' : 'Sign in first if you want your account connected to future sharing features.'}</span>
+            </div>
+            {currentUser ? (
+              <button onClick={signOutUser} type="button">Sign out</button>
+            ) : (
+              <button disabled={!authReady} onClick={signInWithGoogle} type="button">Sign in with Google</button>
+            )}
+          </div>
+          {authError && <p className="library-error">{authError}</p>}
           <div className="library-mode-buttons">
             <button className={isCreatingLibrary ? 'active' : ''} disabled={libraryBusy} onClick={() => { setLibraryMode('create'); setLibraryError(''); }} type="button">Create</button>
             <button className={!isCreatingLibrary ? 'active' : ''} disabled={libraryBusy} onClick={() => { setLibraryMode('signIn'); setLibraryError(''); }} type="button">Sign in</button>
@@ -1171,11 +1213,18 @@ function App() {
               <button disabled={libraryBusy} type="submit">{libraryBusy ? 'Renaming...' : 'Rename'}</button>
             </form>
             <button className="copy-link-button" disabled={libraryBusy} onClick={copyTenantLink} type="button">Copy library link</button>
+            {currentUser ? (
+              <button className="auth-panel-button" disabled={libraryBusy} onClick={signOutUser} type="button">Sign out of Google</button>
+            ) : (
+              <button className="auth-panel-button" disabled={libraryBusy || !authReady} onClick={signInWithGoogle} type="button">Sign in with Google</button>
+            )}
             <button className="sign-out-button" disabled={libraryBusy} onClick={signOutLibrary} type="button">Sign out</button>
             <button className="delete-library-button" disabled={libraryBusy} onClick={deleteLibrary} type="button">{libraryBusy ? 'Working...' : 'Delete library'}</button>
           </div>
         )}
         {showTenantPanel && libraryError && <p className="library-error">{libraryError}</p>}
+        {showTenantPanel && currentUser && <p className="auth-status">Google account: {currentUser.displayName || currentUser.email}</p>}
+        {showTenantPanel && authError && <p className="library-error">{authError}</p>}
       </section>
 
       <section className="hero">
